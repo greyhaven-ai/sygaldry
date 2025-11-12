@@ -33,52 +33,116 @@ repository = "https://github.com/sygaldry-ai/sygaldry"
 documentation = "https://sygaldry.ai/docs"
 
 [project.optional-dependencies]
-dev = [
-    "argcomplete<4.0.0,>=3.5.0",
-    "deptry<1.0.0,>=0.23.0",
-    "icecream<3.0.0,>=2.1.3",
-    "ipython<9.0.0,>=8.27.0",
-    "mypy<2.0.0,>=1.14.1",
-    "pyclean>=3.0.0,<4.0.0",
-    "pytest-asyncio<1.0.0,>=0.25.2",
-    "pytest-cov<7.0.0,>=6.0.0",
-    "pytest<9.0.0,>=8.3.4",
-    "rich<14.0.0,>=13.8.1",
-    "ruff>=0.9.5",
-    # Component dependencies for testing
-    "mirascope>=2.0.0a1",
-    "lilypad-sdk>=0.1.0",
-    "aiofiles>=0.8.0",
-    "asyncpg>=0.29.0",
-    "beautifulsoup4>=4.12.0",
-    "duckduckgo-search>=3.8.0",
-    "exa-py>=1.0.0",
-    "firecrawl-py>=0.0.1",
-    "fuzzywuzzy>=0.18.0",
-    "GitPython>=3.1.0",
-    "jsonpath-ng>=1.6.0",
-    "lxml>=4.9.0",
-    "markdown>=3.5.0",
-    "pandas>=2.0.0",
-    "PyGithub>=2.1.0",
-    "PyPDF2>=3.0.0",
-    "python-docx>=1.0.0",
-    "python-frontmatter>=1.0.0",
-    "python-Levenshtein>=0.20.0",
-    "pyyaml>=6.0",
-    "youtube-transcript-api>=0.6.0",
-    "sqlalchemy>=2.0.0",
-    "psycopg2-binary>=2.9.0",
-    "alembic>=1.12.0",
+# ========== Agent Dependencies (Granular) ==========
+# Core agent support - required for using any agent
+agents = [
+    "mirascope>=2.0.0a1",  # LLM abstraction framework (v2)
 ]
+
+# Observability features (used by 5 agents)
+# Agents requiring this: multi_source_news_verification, enhanced_knowledge_graph,
+# multi_agent_coordinator, prompt_engineering_optimizer, decision_quality_assessor
+observability = [
+    "lilypad-sdk>=0.1.0",
+]
+
+# Async file I/O (used by 1 agent)
+# Agents requiring this: code_generation_execution
+async-io = [
+    "aiofiles>=0.8.0",
+]
+
+# Search tools - web search, Exa AI search
+# Agents requiring this: web_search, research_assistant, hallucination_detector,
+# multi_source_news_verification, academic_research, sales_intelligence,
+# market_intelligence, recruiting_assistant, sourcing_assistant
+search = [
+    "duckduckgo-search>=3.8.0",  # Privacy-focused web search
+    "exa-py>=1.0.0",              # AI-powered semantic search
+]
+
+# Database support - SQLAlchemy, PostgreSQL, SQLite
+# Agents/tools requiring this: sqlalchemy_db, pg_search_tool, dnd_game_master
+database = [
+    "sqlalchemy>=2.0.0",
+    "asyncpg>=0.29.0",        # Async PostgreSQL driver
+    "psycopg2-binary>=2.9.0", # PostgreSQL adapter
+    "alembic>=1.12.0",        # Database migrations
+]
+
+# Web scraping and parsing
+# Tools requiring this: firecrawl_scrape_tool, url_content_parser_tool,
+# mdx_search_tool, code_docs_search_tool
+web = [
+    "beautifulsoup4>=4.12.0",  # HTML/XML parsing
+    "firecrawl-py>=0.0.1",     # Advanced web scraping
+    "lxml>=4.9.0",             # Fast XML/HTML processing
+]
+
+# Document processing - PDF, DOCX, Markdown, etc.
+# Tools requiring this: pdf_search_tool, docx_search_tool, mdx_search_tool
+documents = [
+    "PyPDF2>=3.0.0",           # PDF processing
+    "python-docx>=1.0.0",      # DOCX processing
+    "markdown>=3.5.0",         # Markdown processing
+    "python-frontmatter>=1.0.0", # Frontmatter parsing
+]
+
+# Git and GitHub integration
+# Tools requiring this: git_repo_search_tool
+git = [
+    "GitPython>=3.1.0",
+    "PyGithub>=2.1.0",
+]
+
+# Data processing and analysis
+data = [
+    "pandas>=2.0.0",           # Data manipulation
+    "jsonpath-ng>=1.6.0",      # JSON querying
+    "pyyaml>=6.0",             # YAML parsing
+]
+
+# Fuzzy matching and search
+fuzzy = [
+    "fuzzywuzzy>=0.18.0",
+    "python-Levenshtein>=0.20.0",
+]
+
+# YouTube tools
+youtube = [
+    "youtube-transcript-api>=0.6.0",
+]
+
+# Install all agent dependencies at once
+all-agents = [
+    "sygaldry-cli[agents,observability,async-io,search,database,web,documents,git,data,fuzzy,youtube]",
+]
+
+# ========== Development Dependencies ==========
+dev = [
+    "argcomplete>=3.5.0,<4.0.0",
+    "deptry>=0.23.0,<1.0.0",
+    "icecream>=2.1.3,<3.0.0",
+    "ipython>=8.27.0,<9.0.0",
+    "mypy>=1.14.1,<2.0.0",
+    "pyclean>=3.0.0,<4.0.0",
+    "pytest>=8.3.4,<9.0.0",
+    "pytest-asyncio>=0.25.2,<1.0.0",
+    "pytest-cov>=6.0.0,<7.0.0",
+    "ruff>=0.9.5",
+    # Include all agent dependencies for development
+    "sygaldry-cli[all-agents]",
+]
+
+# ========== Testing Dependencies ==========
 test = [
-    "coverage<8.0.0,>=7.6.1",
-    "hypothesis[cli]<7.0.0,>=6.112.1",
-    "pytest<9.0.0,>=8.3.3",
-    "pytest-asyncio<1.0.0,>=0.24.0",
+    "coverage>=7.6.1,<8.0.0",
+    "hypothesis[cli]>=6.112.1,<7.0.0",
+    "pytest>=8.3.3,<9.0.0",
+    "pytest-asyncio>=0.24.0,<1.0.0",
     "pytest-cov>=6.1.1",
-    "pytest-datafiles<4.0.0,>=3.0.0",
-    "pytest-xdist<4.0.0,>=3.6.1",
+    "pytest-datafiles>=3.0.0,<4.0.0",
+    "pytest-xdist>=3.6.1,<4.0.0",
 ]
 
 [project.scripts]

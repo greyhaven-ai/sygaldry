@@ -177,6 +177,8 @@ from mirascope import llm
 - `MIGRATION_STATUS.md` - Migration tracking
 - `migrate_to_v2.py` - Automation script
 - `test_v2_api.py` - V2 API validation tests
+- `pyproject.toml` - Restructured with granular optional dependencies
+- `AGENT_DEPENDENCIES.md` - Comprehensive agent dependency documentation
 
 ## Commits
 
@@ -203,10 +205,14 @@ from mirascope import llm
 - May have undocumented API changes
 - Some edge cases may need adjustment when v2 reaches stable
 
-### Optional Dependencies
-- Some agents use optional dependencies (lilypad, aiofiles)
-- These don't affect v2 compatibility
-- Can be installed when needed
+### Optional Dependencies (Restructured)
+- Reorganized into granular extras for better user control
+- Users can install only what they need:
+  - `pip install sygaldry-cli[agents]` - Basic agent support
+  - `pip install sygaldry-cli[agents,search]` - Most common use case
+  - `pip install sygaldry-cli[all-agents]` - Everything
+- See `AGENT_DEPENDENCIES.md` for detailed requirements per agent
+- All dependencies properly categorized (observability, search, database, web, etc.)
 
 ## Testing Status
 
