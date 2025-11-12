@@ -3,22 +3,21 @@ from mirascope import llm
 from pydantic import BaseModel, Field
 
 
-# Test 1: Simple prompt template
-@llm.prompt(template="[USER]\nAnswer this question: {{ question }}")
-def simple_prompt(question: str):
-    pass
+# Test 1: Simple functional prompt (v2 pattern)
+@llm.prompt
+def simple_prompt(question: str) -> str:
+    return f"Answer this question: {question}"
 
 
-# Test 2: LLM call with response model
+# Test 2: LLM call with response model (format replaces response_model)
 class Answer(BaseModel):
     response: str = Field(..., description="The answer")
     confidence: float = Field(..., description="Confidence score")
 
 
-@llm.call(provider="openai", model="gpt-4o-mini", response_model=Answer)
-@llm.prompt(template="[USER]\nAnswer: {{ question }}")
-async def answer_question(question: str):
-    pass
+@llm.call(provider="openai:completions", model_id="gpt-4o-mini", format=Answer)
+async def answer_question(question: str) -> str:
+    return f"Answer: {question}"
 
 
 # Test 3: Tool definition
@@ -36,9 +35,9 @@ def search_web(query: str) -> str:
 
 
 # Test 4: Context-based prompt
-@llm.prompt(template="[USER]\nUsing context {{ ctx.deps }}, answer: {{ question }}")
-def context_prompt(ctx: llm.Context[str], question: str):
-    pass
+@llm.prompt
+def context_prompt(ctx: llm.Context[str], question: str) -> str:
+    return f"Using context {ctx.deps}, answer: {question}"
 
 
 if __name__ == "__main__":
