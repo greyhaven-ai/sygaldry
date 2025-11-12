@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from lilypad import trace
-from mirascope import llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Any, Literal, Optional
 
@@ -57,12 +57,13 @@ class SummaryValidation(BaseModel):
 
 # Step 1: Analyze text for summarization (with CoT)
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=SummaryAnalysis,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=SummaryAnalysis,
 )
-@prompt_template(
-    """
+async def analyze_for_summary(text: str) -> str:
+    """Analyze text using chain-of-thought reasoning."""
+    return f"""
     You are an expert text analyst preparing for summarization.
 
     Let me think through this step-by-step:
@@ -88,20 +89,27 @@ class SummaryValidation(BaseModel):
 
     Now analyzing the provided text:
     """
-)
-async def analyze_for_summary(text: str):
-    """Analyze text using chain-of-thought reasoning."""
-    pass
 
 
 # Step 2: Generate summary with style (few-shot)
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=Summary,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=Summary,
 )
-@prompt_template(
-    """
+async def generate_summary(
+    text: str,
+    main_topic: str,
+    key_points: str,
+    target_audience: str,
+    complexity_level: str,
+    target_length: int,
+    style: str,
+    few_shot_examples: str,
+    style_guidelines: str,
+) -> str:
+    """Generate summary with few-shot examples."""
+    return f"""
     You are an expert summarizer. Generate a {style} summary based on this analysis.
 
     Original text: "{text}"
@@ -127,30 +135,17 @@ async def analyze_for_summary(text: str):
     4. Stays within the target length
     5. Maintains accuracy to the original
     """
-)
-async def generate_summary(
-    text: str,
-    main_topic: str,
-    key_points: str,
-    target_audience: str,
-    complexity_level: str,
-    target_length: int,
-    style: str,
-    few_shot_examples: str,
-    style_guidelines: str,
-):
-    """Generate summary with few-shot examples."""
-    pass
 
 
 # Step 3: Progressive summarization chain
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=ProgressiveSummary,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=ProgressiveSummary,
 )
-@prompt_template(
-    """
+async def generate_progressive_summary(text: str, key_points: str) -> str:
+    """Generate summaries at multiple levels of detail."""
+    return f"""
     Create progressive summaries of increasing detail.
 
     Text: "{text}"
@@ -165,20 +160,17 @@ async def generate_summary(
 
     Ensure each level builds upon the previous while adding appropriate detail.
     """
-)
-async def generate_progressive_summary(text: str, key_points: str):
-    """Generate summaries at multiple levels of detail."""
-    pass
 
 
 # Step 4: Validate and refine summary
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=SummaryValidation,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=SummaryValidation,
 )
-@prompt_template(
-    """
+async def validate_summary(original_text: str, summary: str, key_points: str) -> str:
+    """Validate summary accuracy and quality."""
+    return f"""
     Validate this summary against the original text.
 
     Original text: "{original_text}"
@@ -194,10 +186,6 @@ async def generate_progressive_summary(text: str, key_points: str):
 
     Provide specific feedback and improvement suggestions.
     """
-)
-async def validate_summary(original_text: str, summary: str, key_points: str):
-    """Validate summary accuracy and quality."""
-    pass
 
 
 # Main summarization function with advanced chaining

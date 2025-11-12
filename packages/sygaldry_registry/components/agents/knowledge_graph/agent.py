@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from lilypad import trace
-from mirascope import llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Any, Literal, Optional
 
@@ -69,12 +69,13 @@ class GraphEnrichmentResponse(BaseModel):
 
 # Step 1: Extract entities from text
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=EntityExtractionResponse,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=EntityExtractionResponse,
 )
-@prompt_template(
-    """
+async def extract_entities(text: str) -> str:
+    """Extract entities from text."""
+    return f"""
     You are an expert in knowledge extraction and named entity recognition.
 
     Extract all entities from the following text:
@@ -101,20 +102,17 @@ class GraphEnrichmentResponse(BaseModel):
 
     Be comprehensive and extract ALL entities, even if mentioned only once.
     """
-)
-async def extract_entities(text: str):
-    """Extract entities from text."""
-    pass
 
 
 # Step 2: Extract relationships between entities
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=RelationshipExtractionResponse,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=RelationshipExtractionResponse,
 )
-@prompt_template(
-    """
+async def extract_relationships(text: str, entities: str) -> str:
+    """Extract relationships between entities."""
+    return f"""
     You are an expert in relationship extraction and knowledge graph construction.
 
     Given the text and extracted entities, identify all relationships:
@@ -142,20 +140,17 @@ async def extract_entities(text: str):
 
     Look for both explicit and implicit relationships in the text.
     """
-)
-async def extract_relationships(text: str, entities: str):
-    """Extract relationships between entities."""
-    pass
 
 
 # Step 3: Enrich and analyze the knowledge graph
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=GraphEnrichmentResponse,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=GraphEnrichmentResponse,
 )
-@prompt_template(
-    """
+async def enrich_knowledge_graph(entities: str, relationships: str, domain: str) -> str:
+    """Enrich and analyze the knowledge graph."""
+    return f"""
     You are an expert in knowledge graph analysis and enrichment.
 
     Given the extracted knowledge graph, enrich and analyze it:
@@ -181,10 +176,6 @@ async def extract_relationships(text: str, entities: str):
 
     Consider domain-specific patterns and common knowledge to infer additional information.
     """
-)
-async def enrich_knowledge_graph(entities: str, relationships: str, domain: str):
-    """Enrich and analyze the knowledge graph."""
-    pass
 
 
 # Main knowledge graph extraction function

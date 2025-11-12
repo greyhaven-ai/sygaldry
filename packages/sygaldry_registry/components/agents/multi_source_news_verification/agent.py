@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from enum import Enum
-from mirascope import BaseDynamicConfig, BaseTool, llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -25,6 +25,7 @@ except ImportError:
     EXA_AVAILABLE = False
 
 
+# ========== ENUMS (unchanged) ==========
 class CredibilityLevel(str, Enum):
     """Source credibility levels."""
 
@@ -89,324 +90,348 @@ class ClaimType(str, Enum):
     GENERAL = "general"
 
 
-# Web Search Tools for Real-time Verification
-class WebSearchTool(BaseTool):
-    """Search the web for real-time information to verify claims."""
+# ========== TOOLS (converted to functions) ==========
 
-    query: str = Field(..., description="Search query to find relevant information")
-    max_results: int = Field(default=5, description="Maximum number of results to return")
+@llm.tool
+def web_search(query: str, max_results: int = 5) -> str:
+    """Search the web for real-time information to verify claims.
 
-    def call(self) -> str:
-        """Execute web search and return formatted results."""
-        results = []
+    Args:
+        query: Search query to find relevant information
+        max_results: Maximum number of results to return
 
-        # Try DuckDuckGo first
-        if DUCKDUCKGO_AVAILABLE:
-            try:
-                with DDGS() as ddgs:
-                    search_results = list(ddgs.text(self.query, max_results=self.max_results))
+    Returns:
+        Formatted search results or error message
+    """
+    results = []
+
+    # Try DuckDuckGo first
+    if DUCKDUCKGO_AVAILABLE:
+        try:
+            with DDGS() as ddgs:
+                search_results = list(ddgs.text(query, max_results=max_results))
+                for result in search_results:
+                    results.append(
+                        f"Title: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
+                    )
+            return "\n\n".join(results) if results else "No search results found."
+        except Exception as e:
+            pass
+
+    # Fallback to Exa if available
+    if EXA_AVAILABLE:
+        try:
+            exa = Exa(os.environ.get("EXA_API_KEY"))
+            search_result = exa.search(query=query, num_results=max_results)
+            for item in search_result.results:
+                results.append(f"Title: {item.title}\nURL: {item.url}\nScore: {item.score}")
+            return "\n\n".join(results) if results else "No search results found."
+        except Exception as e:
+            pass
+
+    return "Web search unavailable. Please install duckduckgo-search or configure EXA_API_KEY."
+
+
+@llm.tool
+def fact_check_search(claim: str) -> str:
+    """Search fact-checking websites for existing verification of claims.
+
+    Args:
+        claim: The claim to search for fact-checks
+
+    Returns:
+        Formatted fact-check search results
+    """
+    fact_check_sites = [
+        "site:snopes.com",
+        "site:factcheck.org",
+        "site:politifact.com",
+        "site:fullfact.org",
+        "site:apnews.com/APFactCheck",
+        "site:reuters.com/fact-check",
+        "site:washingtonpost.com/news/fact-checker",
+        "site:cnn.com/factsfirst",
+        "site:nytimes.com/spotlight/fact-checks",
+        "site:usatoday.com/news/factcheck",
+        "site:factcheck.afp.com",
+        "site:poynter.org",
+        "site:leadstories.com",
+        "site:factcheckni.org",
+        "site:chequeado.com",
+        "site:africacheck.org",
+        "site:teyit.org",
+        "site:factly.in",
+        "site:boomlive.in",
+        "site:altnews.in",
+        "site:maldita.es",
+        "site:newtral.es",
+    ]
+
+    results = []
+    if DUCKDUCKGO_AVAILABLE:
+        try:
+            with DDGS() as ddgs:
+                # Search top fact-checking sites
+                for site in fact_check_sites[:5]:  # Limit to avoid rate limiting
+                    query = f"{site} {claim}"
+                    search_results = list(ddgs.text(query, max_results=2))
                     for result in search_results:
                         results.append(
-                            f"Title: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
+                            f"Source: {site.replace('site:', '')}\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
                         )
-                return "\n\n".join(results) if results else "No search results found."
-            except Exception as e:
-                pass
 
-        # Fallback to Exa if available
-        if EXA_AVAILABLE:
-            try:
-                exa = Exa(os.environ.get("EXA_API_KEY"))
-                search_result = exa.search(query=self.query, num_results=self.max_results)
-                for item in search_result.results:
-                    results.append(f"Title: {item.title}\nURL: {item.url}\nScore: {item.score}")
-                return "\n\n".join(results) if results else "No search results found."
-            except Exception as e:
-                pass
+                # Also do a general fact-check search
+                general_query = f'"{claim}" fact check OR debunked OR false OR verified'
+                general_results = list(ddgs.text(general_query, max_results=3))
+                for result in general_results:
+                    results.append(
+                        f"General Search:\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
+                    )
 
-        return "Web search unavailable. Please install duckduckgo-search or configure EXA_API_KEY."
+            return "\n\n".join(results) if results else "No fact-checks found for this claim."
+        except Exception:
+            pass
+
+    return "Fact-check search unavailable. Unable to search fact-checking databases."
 
 
-class FactCheckSearchTool(BaseTool):
-    """Search fact-checking websites for existing verification of claims."""
+@llm.tool
+def academic_search(query: str) -> str:
+    """Search academic sources and research papers to verify scientific claims.
 
-    claim: str = Field(..., description="The claim to search for fact-checks")
+    Args:
+        query: Scientific or academic claim to verify
 
-    def call(self) -> str:
-        """Search fact-checking sites for existing verifications."""
-        fact_check_sites = [
-            "site:snopes.com",
-            "site:factcheck.org",
-            "site:politifact.com",
-            "site:fullfact.org",
-            "site:apnews.com/APFactCheck",
-            "site:reuters.com/fact-check",
-            "site:washingtonpost.com/news/fact-checker",
-            "site:cnn.com/factsfirst",
-            "site:nytimes.com/spotlight/fact-checks",
-            "site:usatoday.com/news/factcheck",
-            "site:factcheck.afp.com",
-            "site:poynter.org",
-            "site:leadstories.com",
-            "site:factcheckni.org",
-            "site:chequeado.com",
-            "site:africacheck.org",
-            "site:teyit.org",
-            "site:factly.in",
-            "site:boomlive.in",
-            "site:altnews.in",
-            "site:maldita.es",
-            "site:newtral.es",
-        ]
+    Returns:
+        Formatted academic search results
+    """
+    academic_sites = [
+        "site:scholar.google.com",
+        "site:pubmed.ncbi.nlm.nih.gov",
+        "site:arxiv.org",
+        "site:jstor.org",
+        "site:sciencedirect.com",
+        "site:nature.com",
+        "site:science.org",
+        "site:plos.org",
+        "site:academic.oup.com",
+        "site:springer.com",
+    ]
 
-        results = []
-        if DUCKDUCKGO_AVAILABLE:
-            try:
-                with DDGS() as ddgs:
-                    # Search top fact-checking sites
-                    for site in fact_check_sites[:5]:  # Limit to avoid rate limiting
-                        query = f"{site} {self.claim}"
-                        search_results = list(ddgs.text(query, max_results=2))
-                        for result in search_results:
-                            results.append(
-                                f"Source: {site.replace('site:', '')}\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
-                            )
-
-                    # Also do a general fact-check search
-                    general_query = f'"{self.claim}" fact check OR debunked OR false OR verified'
-                    general_results = list(ddgs.text(general_query, max_results=3))
-                    for result in general_results:
+    results = []
+    if DUCKDUCKGO_AVAILABLE:
+        try:
+            with DDGS() as ddgs:
+                # Search academic sources
+                for site in academic_sites[:3]:
+                    site_query = f"{site} {query}"
+                    search_results = list(ddgs.text(site_query, max_results=2))
+                    for result in search_results:
                         results.append(
-                            f"General Search:\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
+                            f"Academic Source: {site.replace('site:', '')}\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
                         )
 
-                return "\n\n".join(results) if results else "No fact-checks found for this claim."
-            except Exception:
-                pass
+                # Search for meta-analyses and systematic reviews
+                meta_query = f'"{query}" meta-analysis OR systematic review OR peer-reviewed'
+                meta_results = list(ddgs.text(meta_query, max_results=2))
+                for result in meta_results:
+                    results.append(
+                        f"Research:\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
+                    )
 
-        return "Fact-check search unavailable. Unable to search fact-checking databases."
+            return "\n\n".join(results) if results else "No academic sources found."
+        except Exception:
+            pass
+
+    return "Academic search unavailable."
 
 
-class AcademicSearchTool(BaseTool):
-    """Search academic sources and research papers to verify scientific claims."""
+@llm.tool
+def government_data_search(query: str, country: str = "US") -> str:
+    """Search official government sources and databases for statistics and official statements.
 
-    query: str = Field(..., description="Scientific or academic claim to verify")
+    Args:
+        query: Claim involving government data, statistics, or official statements
+        country: Country code for government sources (US, UK, EU, etc.)
 
-    def call(self) -> str:
-        """Search academic databases for peer-reviewed sources."""
-        academic_sites = [
-            "site:scholar.google.com",
-            "site:pubmed.ncbi.nlm.nih.gov",
-            "site:arxiv.org",
-            "site:jstor.org",
-            "site:sciencedirect.com",
-            "site:nature.com",
-            "site:science.org",
-            "site:plos.org",
-            "site:academic.oup.com",
-            "site:springer.com",
-        ]
+    Returns:
+        Formatted government data search results
+    """
+    gov_sites = {
+        "US": [
+            "site:data.gov",
+            "site:census.gov",
+            "site:bls.gov",
+            "site:cdc.gov",
+            "site:fbi.gov/stats-services",
+            "site:whitehouse.gov",
+            "site:congress.gov",
+            "site:gao.gov",
+            "site:cbo.gov",
+            "site:federalregister.gov",
+        ],
+        "UK": ["site:gov.uk", "site:ons.gov.uk", "site:parliament.uk", "site:data.gov.uk"],
+        "EU": ["site:europa.eu", "site:ec.europa.eu", "site:eurostat.ec.europa.eu"],
+        "GLOBAL": ["site:who.int", "site:un.org", "site:worldbank.org", "site:imf.org", "site:oecd.org"],
+    }
 
-        results = []
-        if DUCKDUCKGO_AVAILABLE:
-            try:
-                with DDGS() as ddgs:
-                    # Search academic sources
-                    for site in academic_sites[:3]:
-                        query = f"{site} {self.query}"
-                        search_results = list(ddgs.text(query, max_results=2))
-                        for result in search_results:
-                            results.append(
-                                f"Academic Source: {site.replace('site:', '')}\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
-                            )
+    results = []
+    sites_to_search = gov_sites.get(country, []) + gov_sites["GLOBAL"]
 
-                    # Search for meta-analyses and systematic reviews
-                    meta_query = f'"{self.query}" meta-analysis OR systematic review OR peer-reviewed'
-                    meta_results = list(ddgs.text(meta_query, max_results=2))
-                    for result in meta_results:
+    if DUCKDUCKGO_AVAILABLE:
+        try:
+            with DDGS() as ddgs:
+                for site in sites_to_search[:4]:
+                    site_query = f"{site} {query}"
+                    search_results = list(ddgs.text(site_query, max_results=2))
+                    for result in search_results:
                         results.append(
-                            f"Research:\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
+                            f"Official Source: {site.replace('site:', '')}\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
                         )
 
-                return "\n\n".join(results) if results else "No academic sources found."
-            except Exception:
-                pass
+            return "\n\n".join(results) if results else "No government data found."
+        except Exception:
+            pass
 
-        return "Academic search unavailable."
-
-
-class GovernmentDataTool(BaseTool):
-    """Search official government sources and databases for statistics and official statements."""
-
-    query: str = Field(..., description="Claim involving government data, statistics, or official statements")
-    country: str = Field(default="US", description="Country code for government sources (US, UK, EU, etc.)")
-
-    def call(self) -> str:
-        """Search government databases and official sources."""
-        gov_sites = {
-            "US": [
-                "site:data.gov",
-                "site:census.gov",
-                "site:bls.gov",
-                "site:cdc.gov",
-                "site:fbi.gov/stats-services",
-                "site:whitehouse.gov",
-                "site:congress.gov",
-                "site:gao.gov",
-                "site:cbo.gov",
-                "site:federalregister.gov",
-            ],
-            "UK": ["site:gov.uk", "site:ons.gov.uk", "site:parliament.uk", "site:data.gov.uk"],
-            "EU": ["site:europa.eu", "site:ec.europa.eu", "site:eurostat.ec.europa.eu"],
-            "GLOBAL": ["site:who.int", "site:un.org", "site:worldbank.org", "site:imf.org", "site:oecd.org"],
-        }
-
-        results = []
-        sites_to_search = gov_sites.get(self.country, []) + gov_sites["GLOBAL"]
-
-        if DUCKDUCKGO_AVAILABLE:
-            try:
-                with DDGS() as ddgs:
-                    for site in sites_to_search[:4]:
-                        query = f"{site} {self.query}"
-                        search_results = list(ddgs.text(query, max_results=2))
-                        for result in search_results:
-                            results.append(
-                                f"Official Source: {site.replace('site:', '')}\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
-                            )
-
-                return "\n\n".join(results) if results else "No government data found."
-            except Exception:
-                pass
-
-        return "Government data search unavailable."
+    return "Government data search unavailable."
 
 
-class ReverseImageSearchTool(BaseTool):
-    """Verify images and videos by searching for their original source and context."""
+@llm.tool
+def reverse_image_search(image_description: str) -> str:
+    """Verify images and videos by searching for their original source and context.
 
-    image_description: str = Field(..., description="Description of the image or video to verify")
+    Args:
+        image_description: Description of the image or video to verify
 
-    def call(self) -> str:
-        """Search for original sources of images/videos and their context."""
-        if DUCKDUCKGO_AVAILABLE:
-            try:
-                with DDGS() as ddgs:
-                    results = []
+    Returns:
+        Image verification search results
+    """
+    if DUCKDUCKGO_AVAILABLE:
+        try:
+            with DDGS() as ddgs:
+                results = []
 
-                    # Search for the image description with verification keywords
-                    queries = [
-                        f'"{self.image_description}" original source',
-                        f'"{self.image_description}" fake OR manipulated OR doctored',
-                        f'"{self.image_description}" fact check image',
-                        f'"{self.image_description}" reverse image search results',
-                    ]
+                # Search for the image description with verification keywords
+                queries = [
+                    f'"{image_description}" original source',
+                    f'"{image_description}" fake OR manipulated OR doctored',
+                    f'"{image_description}" fact check image',
+                    f'"{image_description}" reverse image search results',
+                ]
 
-                    for query in queries:
-                        search_results = list(ddgs.text(query, max_results=2))
-                        for result in search_results:
-                            results.append(
-                                f"Image Search:\nQuery: {query}\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
-                            )
-
-                    return "\n\n".join(results) if results else "No image verification results found."
-            except Exception:
-                pass
-
-        return "Image verification search unavailable. Consider using Google Reverse Image Search or TinEye directly."
-
-
-class SocialMediaVerificationTool(BaseTool):
-    """Verify claims originating from social media by searching for original posts and context."""
-
-    claim: str = Field(..., description="Claim or quote from social media")
-    platform: str = Field(default="", description="Social media platform (twitter, facebook, instagram, etc.)")
-
-    def call(self) -> str:
-        """Search for original social media posts and verify authenticity."""
-        results = []
-
-        if DUCKDUCKGO_AVAILABLE:
-            try:
-                with DDGS() as ddgs:
-                    # Platform-specific searches
-                    if self.platform:
-                        platform_query = f'site:{self.platform}.com "{self.claim}"'
-                        search_results = list(ddgs.text(platform_query, max_results=3))
-                        for result in search_results:
-                            results.append(
-                                f"Platform Search ({self.platform}):\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
-                            )
-
-                    # General social media verification
-                    verification_queries = [
-                        f'"{self.claim}" verified account OR official statement',
-                        f'"{self.claim}" deleted tweet OR deleted post OR screenshot',
-                        f'"{self.claim}" social media hoax OR fake',
-                    ]
-
-                    for query in verification_queries:
-                        search_results = list(ddgs.text(query, max_results=2))
-                        for result in search_results:
-                            results.append(
-                                f"Verification Search:\nQuery: {query}\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
-                            )
-
-                return "\n\n".join(results) if results else "No social media verification results found."
-            except Exception:
-                pass
-
-        return "Social media verification unavailable."
-
-
-class ExpertSourceTool(BaseTool):
-    """Find and verify expert opinions and authoritative sources on specific topics."""
-
-    topic: str = Field(..., description="Topic requiring expert verification")
-    claim: str = Field(..., description="Specific claim to verify with experts")
-
-    def call(self) -> str:
-        """Search for expert opinions and authoritative sources."""
-        expert_sources = [
-            "site:harvard.edu",
-            "site:stanford.edu",
-            "site:mit.edu",
-            "site:oxford.ac.uk",
-            "site:cambridge.org",
-            "site:mayoclinic.org",
-            "site:clevelandclinic.org",
-            "site:johnshopkins.edu",
-            "site:scientificamerican.com",
-            "site:theconversation.com",
-        ]
-
-        results = []
-        if DUCKDUCKGO_AVAILABLE:
-            try:
-                with DDGS() as ddgs:
-                    # Search expert sources
-                    for source in expert_sources[:3]:
-                        query = f"{source} {self.topic} {self.claim}"
-                        search_results = list(ddgs.text(query, max_results=2))
-                        for result in search_results:
-                            results.append(
-                                f"Expert Source: {source.replace('site:', '')}\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
-                            )
-
-                    # Search for expert quotes
-                    expert_query = f'"{self.topic}" expert OR professor OR researcher "{self.claim}"'
-                    expert_results = list(ddgs.text(expert_query, max_results=3))
-                    for result in expert_results:
+                for query in queries:
+                    search_results = list(ddgs.text(query, max_results=2))
+                    for result in search_results:
                         results.append(
-                            f"Expert Opinion:\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
+                            f"Image Search:\nQuery: {query}\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
                         )
 
-                return "\n\n".join(results) if results else "No expert sources found."
-            except Exception:
-                pass
+                return "\n\n".join(results) if results else "No image verification results found."
+        except Exception:
+            pass
 
-        return "Expert source search unavailable."
+    return "Image verification search unavailable. Consider using Google Reverse Image Search or TinEye directly."
 
+
+@llm.tool
+def social_media_verification(claim: str, platform: str = "") -> str:
+    """Verify claims originating from social media by searching for original posts and context.
+
+    Args:
+        claim: Claim or quote from social media
+        platform: Social media platform (twitter, facebook, instagram, etc.)
+
+    Returns:
+        Social media verification results
+    """
+    results = []
+
+    if DUCKDUCKGO_AVAILABLE:
+        try:
+            with DDGS() as ddgs:
+                # Platform-specific searches
+                if platform:
+                    platform_query = f'site:{platform}.com "{claim}"'
+                    search_results = list(ddgs.text(platform_query, max_results=3))
+                    for result in search_results:
+                        results.append(
+                            f"Platform Search ({platform}):\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
+                        )
+
+                # General social media verification
+                verification_queries = [
+                    f'"{claim}" verified account OR official statement',
+                    f'"{claim}" deleted tweet OR deleted post OR screenshot',
+                    f'"{claim}" social media hoax OR fake',
+                ]
+
+                for query in verification_queries:
+                    search_results = list(ddgs.text(query, max_results=2))
+                    for result in search_results:
+                        results.append(
+                            f"Verification Search:\nQuery: {query}\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
+                        )
+
+            return "\n\n".join(results) if results else "No social media verification results found."
+        except Exception:
+            pass
+
+    return "Social media verification unavailable."
+
+
+@llm.tool
+def expert_source_search(topic: str, claim: str) -> str:
+    """Find and verify expert opinions and authoritative sources on specific topics.
+
+    Args:
+        topic: Topic requiring expert verification
+        claim: Specific claim to verify with experts
+
+    Returns:
+        Expert source search results
+    """
+    expert_sources = [
+        "site:harvard.edu",
+        "site:stanford.edu",
+        "site:mit.edu",
+        "site:oxford.ac.uk",
+        "site:cambridge.org",
+        "site:mayoclinic.org",
+        "site:clevelandclinic.org",
+        "site:johnshopkins.edu",
+        "site:scientificamerican.com",
+        "site:theconversation.com",
+    ]
+
+    results = []
+    if DUCKDUCKGO_AVAILABLE:
+        try:
+            with DDGS() as ddgs:
+                # Search expert sources
+                for source in expert_sources[:3]:
+                    query = f"{source} {topic} {claim}"
+                    search_results = list(ddgs.text(query, max_results=2))
+                    for result in search_results:
+                        results.append(
+                            f"Expert Source: {source.replace('site:', '')}\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
+                        )
+
+                # Search for expert quotes
+                expert_query = f'"{topic}" expert OR professor OR researcher "{claim}"'
+                expert_results = list(ddgs.text(expert_query, max_results=3))
+                for result in expert_results:
+                    results.append(
+                        f"Expert Opinion:\nTitle: {result.get('title', '')}\nURL: {result.get('href', '')}\nSnippet: {result.get('body', '')}"
+                    )
+
+            return "\n\n".join(results) if results else "No expert sources found."
+        except Exception:
+            pass
+
+    return "Expert source search unavailable."
+
+
+# ========== RESPONSE MODELS (unchanged) ==========
 
 class SourceCredibility(BaseModel):
     """Enhanced credibility assessment of a news source."""
@@ -514,360 +539,339 @@ class VerificationResult(BaseModel):
     educational_value: str = Field(..., description="Educational insights from this verification")
 
 
+# ========== AGENT FUNCTIONS (v2 converted) ==========
+
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=list[SourceCredibility],
-    tools=[WebSearchTool],
-)
-@prompt_template(
-    """
-    SYSTEM:
-    You are an expert media literacy specialist and fact-checker with deep knowledge
-    of journalism standards, media bias, and misinformation patterns. You have access
-    to web search to verify source credibility and check current reputation.
-    Your role is to assess news source credibility using established frameworks,
-    real-time information, and provide educational insights.
-
-    Credibility Assessment Framework:
-    1. Editorial Standards: Corrections policy, transparency, accountability, ethics
-    2. Factual Reporting: Accuracy track record, source diversity, verification practices
-    3. Transparency: Ownership disclosure, funding sources, conflicts of interest, author info
-    4. Professional Standards: Journalistic ethics, separation of news/opinion, bylines
-    5. Track Record: Historical accuracy, retractions, fact-checker ratings, awards
-    6. Technical Indicators: HTTPS, about page, contact info, domain age
-    7. Real-time Reputation: Current controversies, recent fact-checks, public trust
-
-    Use WebSearchTool to:
-    - Search for "[source name] media bias fact check"
-    - Search for "[source name] credibility rating"
-    - Search for "[source name] controversies retractions"
-    - Search for "[source name] ownership funding"
-    - Verify current reputation and recent issues
-
-    Credibility Levels:
-    - VERY_HIGH: Exemplary standards, minimal bias, excellent track record, transparent
-    - HIGH: Strong standards, minor bias, good track record, mostly transparent
-    - MODERATE: Adequate standards, some bias, mixed track record, some transparency
-    - LOW: Poor standards, significant bias, questionable track record, limited transparency
-    - VERY_LOW: No standards, extreme bias, poor track record, no transparency
-    - UNKNOWN: Insufficient information to assess
-
-    Bias Spectrum:
-    - FAR_LEFT/FAR_RIGHT: Extreme bias, propaganda, activism over journalism
-    - LEFT/RIGHT: Clear bias, selective reporting, partisan framing
-    - CENTER_LEFT/CENTER_RIGHT: Slight bias, generally balanced
-    - CENTER: Minimal bias, balanced reporting
-
-    Include fact-checker ratings from:
-    - Snopes, FactCheck.org, PolitiFact
-    - Media Bias/Fact Check, AllSides
-    - International Fact-Checking Network members
-
-    USER:
-    Assess the credibility of these news sources:
-
-    Sources: {sources}
-    Context: {context}
-    Topic Area: {topic_area}
-    Time Period: {time_period}
-
-    Use web search to verify current credibility and reputation.
-    Provide detailed credibility assessments with educational insights and fact-checker consensus.
-    """
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=list[SourceCredibility],
+    tools=[web_search],
 )
 def assess_source_credibility(
     sources: list[str], context: str = "", topic_area: str = "", time_period: str = "current"
-) -> list[SourceCredibility]:
-    """Assess the credibility of news sources with enhanced analysis and real-time verification."""
-    pass
+) -> str:
+    """Assess the credibility of news sources with enhanced analysis and real-time verification.
+
+    Args:
+        sources: List of news source names to assess
+        context: Additional context about the topic
+        topic_area: Subject area of the news
+        time_period: Time period for assessment
+
+    Returns:
+        Formatted prompt for LLM to assess source credibility
+    """
+    return f"""SYSTEM:
+You are an expert media literacy specialist and fact-checker with deep knowledge
+of journalism standards, media bias, and misinformation patterns. You have access
+to web search to verify source credibility and check current reputation.
+Your role is to assess news source credibility using established frameworks,
+real-time information, and provide educational insights.
+
+Credibility Assessment Framework:
+1. Editorial Standards: Corrections policy, transparency, accountability, ethics
+2. Factual Reporting: Accuracy track record, source diversity, verification practices
+3. Transparency: Ownership disclosure, funding sources, conflicts of interest, author info
+4. Professional Standards: Journalistic ethics, separation of news/opinion, bylines
+5. Track Record: Historical accuracy, retractions, fact-checker ratings, awards
+6. Technical Indicators: HTTPS, about page, contact info, domain age
+7. Real-time Reputation: Current controversies, recent fact-checks, public trust
+
+Use web_search tool to:
+- Search for "[source name] media bias fact check"
+- Search for "[source name] credibility rating"
+- Search for "[source name] controversies retractions"
+- Search for "[source name] ownership funding"
+- Verify current reputation and recent issues
+
+Credibility Levels:
+- VERY_HIGH: Exemplary standards, minimal bias, excellent track record, transparent
+- HIGH: Strong standards, minor bias, good track record, mostly transparent
+- MODERATE: Adequate standards, some bias, mixed track record, some transparency
+- LOW: Poor standards, significant bias, questionable track record, limited transparency
+- VERY_LOW: No standards, extreme bias, poor track record, no transparency
+- UNKNOWN: Insufficient information to assess
+
+Bias Spectrum:
+- FAR_LEFT/FAR_RIGHT: Extreme bias, propaganda, activism over journalism
+- LEFT/RIGHT: Clear bias, selective reporting, partisan framing
+- CENTER_LEFT/CENTER_RIGHT: Slight bias, generally balanced
+- CENTER: Minimal bias, balanced reporting
+
+Include fact-checker ratings from:
+- Snopes, FactCheck.org, PolitiFact
+- Media Bias/Fact Check, AllSides
+- International Fact-Checking Network members
+
+USER:
+Assess the credibility of these news sources:
+
+Sources: {sources}
+Context: {context}
+Topic Area: {topic_area}
+Time Period: {time_period}
+
+Use web search to verify current credibility and reputation.
+Provide detailed credibility assessments with educational insights and fact-checker consensus."""
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=NewsAnalysis,
-)
-@prompt_template(
-    """
-    SYSTEM:
-    You are an expert news analyst, media literacy educator, and bias detection specialist.
-    Your role is to analyze news content for reliability, bias, completeness, potential
-    misinformation, and categorize claims for appropriate verification methods.
-
-    Analysis Framework:
-    1. Claim Extraction: Identify all factual claims and their sources
-    2. Claim Categorization: Classify each claim by type for verification routing
-    3. Language Analysis: Detect emotional, loaded, or manipulative language
-    4. Context Assessment: Identify missing context, background, or perspectives
-    5. Bias Detection: Analyze framing, source selection, and presentation bias
-    6. Fact vs Opinion: Clearly distinguish factual claims from opinions
-    7. Completeness: Assess how complete and balanced the reporting is
-    8. Transparency: Evaluate source attribution and transparency
-    9. Misinformation Indicators: Check for common misinformation patterns
-    10. Verification Priority: Prioritize claims for fact-checking
-
-    Claim Type Categories:
-    - STATISTICAL: Claims involving numbers, percentages, data
-    - SCIENTIFIC: Scientific findings, research results
-    - MEDICAL: Health claims, medical advice, treatments
-    - POLITICAL: Political statements, policy claims
-    - HISTORICAL: Historical facts, past events
-    - QUOTE: Direct quotes from individuals
-    - IMAGE_VIDEO: Claims about visual content
-    - SOCIAL_MEDIA: Claims originating from social platforms
-    - FINANCIAL: Economic data, market claims
-    - LEGAL: Legal claims, court decisions
-    - GENERAL: Other factual claims
-
-    Bias Analysis Components:
-    - Framing bias: How the story angle affects perception
-    - Selection bias: Which facts are included/excluded
-    - Source bias: Diversity and balance of sources
-    - Language bias: Loaded or emotional language
-    - Visual bias: Misleading images or graphics
-    - Headline bias: Clickbait or misrepresentation
-
-    Misinformation Types:
-    - FABRICATION: Completely false information
-    - MANIPULATION: Doctored content or quotes
-    - MISREPRESENTATION: True info presented misleadingly
-    - FALSE_CONTEXT: Real content in wrong context
-    - SATIRE: Humor mistaken for news
-    - CLICKBAIT: Sensationalized for clicks
-    - PROPAGANDA: Systematic bias for agenda
-    - CONSPIRACY_THEORY: Unfounded conspiracy claims
-
-    Verification Priority Factors:
-    - Claims that could cause harm if false
-    - Claims central to the story's thesis
-    - Claims that seem extraordinary or unlikely
-    - Claims lacking clear sources
-    - Claims contradicting known facts
-
-    USER:
-    Analyze this news content comprehensively:
-
-    Article/Content: {article_content}
-    Headline: {headline}
-    Source Context: {source_context}
-    Publication Date: {publication_date}
-    Author Information: {author_info}
-
-    Provide detailed analysis with claim categorization for verification routing.
-    Identify which claims should be prioritized for fact-checking and why.
-    """
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=NewsAnalysis,
 )
 def analyze_news_content(
     article_content: str, headline: str = "", source_context: str = "", publication_date: str = "", author_info: str = ""
-) -> NewsAnalysis:
-    """Analyze news content with enhanced bias detection and claim categorization."""
-    pass
+) -> str:
+    """Analyze news content with enhanced bias detection and claim categorization.
+
+    Args:
+        article_content: The news article or content to analyze
+        headline: Article headline
+        source_context: Context about the source
+        publication_date: When the article was published
+        author_info: Information about the author
+
+    Returns:
+        Formatted prompt for LLM to analyze news content
+    """
+    return f"""SYSTEM:
+You are an expert news analyst, media literacy educator, and bias detection specialist.
+Your role is to analyze news content for reliability, bias, completeness, potential
+misinformation, and categorize claims for appropriate verification methods.
+
+Analysis Framework:
+1. Claim Extraction: Identify all factual claims and their sources
+2. Claim Categorization: Classify each claim by type for verification routing
+3. Language Analysis: Detect emotional, loaded, or manipulative language
+4. Context Assessment: Identify missing context, background, or perspectives
+5. Bias Detection: Analyze framing, source selection, and presentation bias
+6. Fact vs Opinion: Clearly distinguish factual claims from opinions
+7. Completeness: Assess how complete and balanced the reporting is
+8. Transparency: Evaluate source attribution and transparency
+9. Misinformation Indicators: Check for common misinformation patterns
+10. Verification Priority: Prioritize claims for fact-checking
+
+Claim Type Categories:
+- STATISTICAL: Claims involving numbers, percentages, data
+- SCIENTIFIC: Scientific findings, research results
+- MEDICAL: Health claims, medical advice, treatments
+- POLITICAL: Political statements, policy claims
+- HISTORICAL: Historical facts, past events
+- QUOTE: Direct quotes from individuals
+- IMAGE_VIDEO: Claims about visual content
+- SOCIAL_MEDIA: Claims originating from social platforms
+- FINANCIAL: Economic data, market claims
+- LEGAL: Legal claims, court decisions
+- GENERAL: Other factual claims
+
+Bias Analysis Components:
+- Framing bias: How the story angle affects perception
+- Selection bias: Which facts are included/excluded
+- Source bias: Diversity and balance of sources
+- Language bias: Loaded or emotional language
+- Visual bias: Misleading images or graphics
+- Headline bias: Clickbait or misrepresentation
+
+Misinformation Types:
+- FABRICATION: Completely false information
+- MANIPULATION: Doctored content or quotes
+- MISREPRESENTATION: True info presented misleadingly
+- FALSE_CONTEXT: Real content in wrong context
+- SATIRE: Humor mistaken for news
+- CLICKBAIT: Sensationalized for clicks
+- PROPAGANDA: Systematic bias for agenda
+- CONSPIRACY_THEORY: Unfounded conspiracy claims
+
+Verification Priority Factors:
+- Claims that could cause harm if false
+- Claims central to the story's thesis
+- Claims that seem extraordinary or unlikely
+- Claims lacking clear sources
+- Claims contradicting known facts
+
+USER:
+Analyze this news content comprehensively:
+
+Article/Content: {article_content}
+Headline: {headline}
+Source Context: {source_context}
+Publication Date: {publication_date}
+Author Information: {author_info}
+
+Provide detailed analysis with claim categorization for verification routing.
+Identify which claims should be prioritized for fact-checking and why."""
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=list[FactCheck],
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=list[FactCheck],
     tools=[
-        WebSearchTool,
-        FactCheckSearchTool,
-        AcademicSearchTool,
-        GovernmentDataTool,
-        ReverseImageSearchTool,
-        SocialMediaVerificationTool,
-        ExpertSourceTool,
+        web_search,
+        fact_check_search,
+        academic_search,
+        government_data_search,
+        reverse_image_search,
+        social_media_verification,
+        expert_source_search,
     ],
-)
-@prompt_template(
-    """
-    SYSTEM:
-    You are an expert fact-checker with access to comprehensive verification tools.
-    You can search the web, academic databases, government sources, and more.
-    Your role is to verify claims using multiple sources and methodologies,
-    identify missing context, and provide transparent assessments based on
-    the most current and authoritative information available.
-
-    Fact-Checking Methodology:
-    1. Claim Isolation: Extract specific, verifiable claims
-    2. Multi-Source Verification: Use appropriate tools based on claim type
-    3. Cross-Reference: Check multiple independent sources
-    4. Context Analysis: Identify crucial missing context
-    5. Evidence Quality: Assess strength and reliability of evidence
-    6. Consensus Check: Look for fact-checker and expert consensus
-    7. Transparency: Document verification process and limitations
-
-    Tool Selection Guide:
-    - WebSearchTool: General current information and news
-    - FactCheckSearchTool: Existing fact-checks from major organizations
-    - AcademicSearchTool: Scientific claims, research findings, medical information
-    - GovernmentDataTool: Statistics, official statements, policy claims
-    - ReverseImageSearchTool: Verify images or videos mentioned in claims
-    - SocialMediaVerificationTool: Quotes, viral posts, social media claims
-    - ExpertSourceTool: Complex topics requiring expert analysis
-
-    Verification Strategy:
-    1. For statistical claims: Use GovernmentDataTool and AcademicSearchTool
-    2. For scientific/medical claims: Use AcademicSearchTool and ExpertSourceTool
-    3. For political claims: Use FactCheckSearchTool and GovernmentDataTool
-    4. For viral content: Use SocialMediaVerificationTool and ReverseImageSearchTool
-    5. For breaking news: Use WebSearchTool and FactCheckSearchTool
-    6. Always cross-reference with multiple tool types
-
-    Verification Categories:
-    - VERIFIED: Multiple reliable sources confirm, strong evidence
-    - PARTIALLY_VERIFIED: Some aspects confirmed, others unclear
-    - UNVERIFIED: Insufficient evidence to confirm or deny
-    - CONTRADICTED: Reliable sources contradict the claim
-    - INSUFFICIENT_EVIDENCE: Not enough information available
-    - MISLEADING_CONTEXT: True but presented misleadingly
-
-    Evidence Quality Hierarchy:
-    1. Primary sources (official documents, data, recordings)
-    2. Peer-reviewed academic research
-    3. Government statistics and official statements
-    4. Expert consensus from recognized authorities
-    5. Established fact-checking organizations
-    6. Quality journalism from reputable sources
-    7. Direct observations and eyewitness accounts
-
-    Consider these factors:
-    - Temporal relevance (when was the claim made vs. current data)
-    - Geographic relevance (local vs. global claims)
-    - Source authority (expertise in the specific domain)
-    - Potential conflicts of interest
-    - Consensus across different types of sources
-
-    USER:
-    Fact-check these claims with comprehensive verification:
-
-    Claims: {claims}
-    Available Sources: {available_sources}
-    Context: {context}
-    Time Sensitivity: {time_sensitivity}
-    Related Fact-Checks: {related_fact_checks}
-
-    Use multiple verification tools appropriate to each claim type.
-    Provide comprehensive fact-checking with evidence assessment and missing context identification.
-    Document which tools were used and why for transparency.
-    """
 )
 def fact_check_claims(
     claims: list[str], available_sources: list[str], context: str = "", time_sensitivity: str = "", related_fact_checks: str = ""
-) -> list[FactCheck]:
-    """Fact-check specific claims with enhanced verification methodology and comprehensive tool suite."""
-    pass
+) -> str:
+    """Fact-check specific claims with enhanced verification methodology and comprehensive tool suite.
+
+    Args:
+        claims: List of claims to fact-check
+        available_sources: List of available sources
+        context: Additional context
+        time_sensitivity: Time sensitivity of the claims
+        related_fact_checks: Related fact-checks found
+
+    Returns:
+        Formatted prompt for LLM to fact-check claims
+    """
+    return f"""SYSTEM:
+You are an expert fact-checker with access to comprehensive verification tools.
+You can search the web, academic databases, government sources, and more.
+Your role is to verify claims using multiple sources and methodologies,
+identify missing context, and provide transparent assessments based on
+the most current and authoritative information available.
+
+Fact-Checking Methodology:
+1. Claim Isolation: Extract specific, verifiable claims
+2. Multi-Source Verification: Use appropriate tools based on claim type
+3. Cross-Reference: Check multiple independent sources
+4. Context Analysis: Identify crucial missing context
+5. Evidence Quality: Assess strength and reliability of evidence
+6. Consensus Check: Look for fact-checker and expert consensus
+7. Transparency: Document verification process and limitations
+
+Tool Selection Guide:
+- web_search: General current information and news
+- fact_check_search: Existing fact-checks from major organizations
+- academic_search: Scientific claims, research findings, medical information
+- government_data_search: Statistics, official statements, policy claims
+- reverse_image_search: Verify images or videos mentioned in claims
+- social_media_verification: Quotes, viral posts, social media claims
+- expert_source_search: Complex topics requiring expert analysis
+
+Verification Strategy:
+1. For statistical claims: Use government_data_search and academic_search
+2. For scientific/medical claims: Use academic_search and expert_source_search
+3. For political claims: Use fact_check_search and government_data_search
+4. For viral content: Use social_media_verification and reverse_image_search
+5. For breaking news: Use web_search and fact_check_search
+6. Always cross-reference with multiple tool types
+
+Verification Categories:
+- VERIFIED: Multiple reliable sources confirm, strong evidence
+- PARTIALLY_VERIFIED: Some aspects confirmed, others unclear
+- UNVERIFIED: Insufficient evidence to confirm or deny
+- CONTRADICTED: Reliable sources contradict the claim
+- INSUFFICIENT_EVIDENCE: Not enough information available
+- MISLEADING_CONTEXT: True but presented misleadingly
+
+Evidence Quality Hierarchy:
+1. Primary sources (official documents, data, recordings)
+2. Peer-reviewed academic research
+3. Government statistics and official statements
+4. Expert consensus from recognized authorities
+5. Established fact-checking organizations
+6. Quality journalism from reputable sources
+7. Direct observations and eyewitness accounts
+
+Consider these factors:
+- Temporal relevance (when was the claim made vs. current data)
+- Geographic relevance (local vs. global claims)
+- Source authority (expertise in the specific domain)
+- Potential conflicts of interest
+- Consensus across different types of sources
+
+USER:
+Fact-check these claims with comprehensive verification:
+
+Claims: {claims}
+Available Sources: {available_sources}
+Context: {context}
+Time Sensitivity: {time_sensitivity}
+Related Fact-Checks: {related_fact_checks}
+
+Use multiple verification tools appropriate to each claim type.
+Provide comprehensive fact-checking with evidence assessment and missing context identification.
+Document which tools were used and why for transparency."""
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=MediaLiteracyReport,
-)
-@prompt_template(
-    """
-    SYSTEM:
-    You are an expert media literacy educator. Your role is to help readers
-    develop critical thinking skills for evaluating news and information.
-    Create educational content that empowers readers to verify information independently.
-
-    Media Literacy Framework:
-    1. Critical Questions: What readers should ask about any news
-    2. Red Flag Identification: Warning signs in this specific content
-    3. Verification Skills: Practical tips for fact-checking
-    4. Critical Thinking: Prompts for deeper analysis
-    5. Resources: Tools and websites for verification
-    6. Key Lessons: Transferable media literacy skills
-
-    Educational Approach:
-    - Make it practical and actionable
-    - Use this content as a teaching example
-    - Provide specific, not just general advice
-    - Encourage healthy skepticism, not cynicism
-    - Promote information verification habits
-
-    Key Questions Framework:
-    - Who created this and why?
-    - What's the evidence?
-    - What's missing?
-    - Who benefits from this message?
-    - Is this the whole story?
-
-    USER:
-    Create a media literacy report for this verification:
-
-    News Analysis: {news_analysis}
-    Fact Check Results: {fact_check_results}
-    Source Credibility: {source_credibility}
-    Verification Findings: {verification_findings}
-
-    Provide educational insights and practical verification guidance.
-    """
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=MediaLiteracyReport,
 )
 def create_media_literacy_report(
     news_analysis: NewsAnalysis,
     fact_check_results: list[FactCheck],
     source_credibility: list[SourceCredibility],
     verification_findings: str,
-) -> BaseDynamicConfig:
-    """Create educational media literacy report."""
-    return {
-        "computed_fields": {
-            "news_analysis": news_analysis,
-            "fact_check_results": fact_check_results,
-            "source_credibility": source_credibility,
-        }
-    }
+) -> str:
+    """Create educational media literacy report.
+
+    Args:
+        news_analysis: Analysis of the news content
+        fact_check_results: Results of fact-checking
+        source_credibility: Credibility assessment of sources
+        verification_findings: Overall verification findings
+
+    Returns:
+        Formatted prompt for LLM to create media literacy report
+    """
+    # Convert objects to string representations for the prompt
+    analysis_summary = f"Main claims: {len(news_analysis.main_claims)}, Bias: {news_analysis.bias_analysis.bias_type}, Transparency: {news_analysis.transparency_score}"
+    fact_check_summary = f"Total checks: {len(fact_check_results)}, Verified: {sum(1 for fc in fact_check_results if fc.verification_status == VerificationStatus.VERIFIED)}"
+    source_summary = f"Sources assessed: {len(source_credibility)}"
+
+    return f"""SYSTEM:
+You are an expert media literacy educator. Your role is to help readers
+develop critical thinking skills for evaluating news and information.
+Create educational content that empowers readers to verify information independently.
+
+Media Literacy Framework:
+1. Critical Questions: What readers should ask about any news
+2. Red Flag Identification: Warning signs in this specific content
+3. Verification Skills: Practical tips for fact-checking
+4. Critical Thinking: Prompts for deeper analysis
+5. Resources: Tools and websites for verification
+6. Key Lessons: Transferable media literacy skills
+
+Educational Approach:
+- Make it practical and actionable
+- Use this content as a teaching example
+- Provide specific, not just general advice
+- Encourage healthy skepticism, not cynicism
+- Promote information verification habits
+
+Key Questions Framework:
+- Who created this and why?
+- What's the evidence?
+- What's missing?
+- Who benefits from this message?
+- Is this the whole story?
+
+USER:
+Create a media literacy report for this verification:
+
+News Analysis: {analysis_summary}
+Fact Check Results: {fact_check_summary}
+Source Credibility: {source_summary}
+Verification Findings: {verification_findings}
+
+Provide educational insights and practical verification guidance."""
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=NewsVerification,
-)
-@prompt_template(
-    """
-    SYSTEM:
-    You are an expert news verification specialist combining fact-checking,
-    source analysis, and media literacy education. Your role is to synthesize
-    all verification components into a comprehensive, educational report.
-
-    Verification Synthesis Framework:
-    1. Source Reliability: Weight findings by source credibility
-    2. Claim Verification: Assess overall verification status
-    3. Cross-Reference: Analyze consistency across sources
-    4. Consensus Level: Determine agreement among reliable sources
-    5. Red Flags: Identify misinformation warning signs
-    6. Reliability Indicators: Highlight positive credibility factors
-    7. Educational Value: Extract media literacy lessons
-    8. Actionable Guidance: Provide clear recommendations
-
-    Consider:
-    - Pattern recognition in misinformation
-    - Common manipulation techniques
-    - Importance of primary sources
-    - Role of context in understanding
-    - Difference between bias and misinformation
-    - Value of diverse perspectives
-
-    Alternative Source Recommendations:
-    - Suggest diverse, credible sources
-    - Include different perspectives
-    - Recommend primary sources
-    - Suggest fact-checking resources
-
-    USER:
-    Synthesize comprehensive news verification:
-
-    Original Article: {original_article}
-    Source Credibility: {source_credibility}
-    Content Analysis: {content_analysis}
-    Fact-Check Results: {fact_check_results}
-    Media Literacy Report: {media_literacy_report}
-    Additional Context: {additional_context}
-
-    Provide complete verification with educational insights and actionable recommendations.
-    """
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=NewsVerification,
 )
 def synthesize_news_verification(
     original_article: str,
@@ -876,16 +880,65 @@ def synthesize_news_verification(
     fact_check_results: list[FactCheck],
     media_literacy_report: MediaLiteracyReport,
     additional_context: str = "",
-) -> BaseDynamicConfig:
-    """Synthesize comprehensive news verification with education focus."""
-    return {
-        "computed_fields": {
-            "source_credibility": source_credibility,
-            "content_analysis": content_analysis,
-            "fact_check_results": fact_check_results,
-            "media_literacy_report": media_literacy_report,
-        }
-    }
+) -> str:
+    """Synthesize comprehensive news verification with education focus.
+
+    Args:
+        original_article: The original article content
+        source_credibility: Source credibility assessments
+        content_analysis: Content analysis results
+        fact_check_results: Fact-check results
+        media_literacy_report: Media literacy report
+        additional_context: Additional context
+
+    Returns:
+        Formatted prompt for LLM to synthesize verification
+    """
+    # Create summaries for the prompt
+    credibility_summary = f"{len(source_credibility)} sources assessed"
+    analysis_summary = f"{len(content_analysis.main_claims)} claims identified"
+    fact_check_summary = f"{len(fact_check_results)} claims fact-checked"
+
+    return f"""SYSTEM:
+You are an expert news verification specialist combining fact-checking,
+source analysis, and media literacy education. Your role is to synthesize
+all verification components into a comprehensive, educational report.
+
+Verification Synthesis Framework:
+1. Source Reliability: Weight findings by source credibility
+2. Claim Verification: Assess overall verification status
+3. Cross-Reference: Analyze consistency across sources
+4. Consensus Level: Determine agreement among reliable sources
+5. Red Flags: Identify misinformation warning signs
+6. Reliability Indicators: Highlight positive credibility factors
+7. Educational Value: Extract media literacy lessons
+8. Actionable Guidance: Provide clear recommendations
+
+Consider:
+- Pattern recognition in misinformation
+- Common manipulation techniques
+- Importance of primary sources
+- Role of context in understanding
+- Difference between bias and misinformation
+- Value of diverse perspectives
+
+Alternative Source Recommendations:
+- Suggest diverse, credible sources
+- Include different perspectives
+- Recommend primary sources
+- Suggest fact-checking resources
+
+USER:
+Synthesize comprehensive news verification:
+
+Original Article: {original_article[:500]}...
+Source Credibility: {credibility_summary}
+Content Analysis: {analysis_summary}
+Fact-Check Results: {fact_check_summary}
+Media Literacy Report: Available
+Additional Context: {additional_context}
+
+Provide complete verification with educational insights and actionable recommendations."""
 
 
 async def multi_source_news_verification(

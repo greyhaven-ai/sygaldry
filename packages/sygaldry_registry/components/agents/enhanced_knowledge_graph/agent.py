@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from lilypad import trace
-from mirascope import llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Any, Literal, Optional
 
@@ -50,12 +50,13 @@ class ConsistencyCheck(BaseModel):
 
 # Step 1: Plan extraction strategy (meta-reasoning)
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=ExtractionPlan,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=ExtractionPlan,
 )
-@prompt_template(
-    """
+async def plan_extraction(text_preview: str, domain: str) -> str:
+    """Plan extraction strategy using meta-reasoning."""
+    return f"""
     You are a knowledge extraction strategist. Plan the best approach for extracting knowledge from this text.
 
     Text preview: "{text_preview}"
@@ -75,20 +76,17 @@ class ConsistencyCheck(BaseModel):
 
     Create a comprehensive extraction plan.
     """
-)
-async def plan_extraction(text_preview: str, domain: str):
-    """Plan extraction strategy using meta-reasoning."""
-    pass
 
 
 # Step 2: Extract entities with reasoning (CoT + Few-shot)
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=list[EntityWithReasoning],
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=list[EntityWithReasoning],
 )
-@prompt_template(
-    """
+async def extract_entities_with_reasoning(text: str, strategy: str, categories: str) -> str:
+    """Extract entities with chain-of-thought reasoning."""
+    return f"""
     Extract entities with detailed reasoning. Think step-by-step for each entity.
 
     Text: "{text}"
@@ -119,20 +117,17 @@ async def plan_extraction(text_preview: str, domain: str):
 
     Now extract with similar detailed reasoning:
     """
-)
-async def extract_entities_with_reasoning(text: str, strategy: str, categories: str):
-    """Extract entities with chain-of-thought reasoning."""
-    pass
 
 
 # Step 3: Multi-pass relationship extraction
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=list[RelationshipWithReasoning],
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=list[RelationshipWithReasoning],
 )
-@prompt_template(
-    """
+async def extract_relationships_multipass(text: str, entities: str, patterns: str) -> str:
+    """Extract relationships using multi-pass reasoning."""
+    return f"""
     Extract relationships between entities. Use multi-pass reasoning.
 
     Text: "{text}"
@@ -158,20 +153,17 @@ async def extract_entities_with_reasoning(text: str, strategy: str, categories: 
 
     Extract relationships with similar reasoning:
     """
-)
-async def extract_relationships_multipass(text: str, entities: str, patterns: str):
-    """Extract relationships using multi-pass reasoning."""
-    pass
 
 
 # Step 4: Self-consistency validation
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=ConsistencyCheck,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=ConsistencyCheck,
 )
-@prompt_template(
-    """
+async def validate_consistency(text: str, extraction1: str, extraction2: str, extraction3: str) -> str:
+    """Validate extraction consistency."""
+    return f"""
     Validate extraction consistency across multiple interpretations.
 
     Text: "{text}"
@@ -188,10 +180,6 @@ async def extract_relationships_multipass(text: str, entities: str, patterns: st
 
     Higher consistency = higher confidence in extraction.
     """
-)
-async def validate_consistency(text: str, extraction1: str, extraction2: str, extraction3: str):
-    """Validate extraction consistency."""
-    pass
 
 
 # Enhanced main extraction function

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from lilypad import trace
-from mirascope import llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Any, Literal, Optional
 
@@ -143,12 +143,13 @@ async def segment_by_structure(text: str, min_segment_length: int = 100) -> list
 
 # Step 1: Analyze document structure
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=DocumentStructure,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=DocumentStructure,
 )
-@prompt_template(
-    """
+async def analyze_document_structure(document_preview: str, doc_length: int) -> str:
+    """Analyze document structure to determine segmentation strategy."""
+    return f"""
     You are an expert document analyst. Analyze the structure of this document.
 
     Document preview (first 1000 characters):
@@ -168,20 +169,17 @@ async def segment_by_structure(text: str, min_segment_length: int = 100) -> list
 
     Consider the document's purpose and how it should be logically divided for processing.
     """
-)
-async def analyze_document_structure(document_preview: str, doc_length: int):
-    """Analyze document structure to determine segmentation strategy."""
-    pass
 
 
 # Step 2: Perform semantic segmentation
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=SegmentationResult,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=SegmentationResult,
 )
-@prompt_template(
-    """
+async def segment_semantically(document: str, strategy: str, segment_types: str) -> str:
+    """Perform semantic segmentation of document."""
+    return f"""
     You are an expert in document segmentation. Segment this document semantically.
 
     Document:
@@ -206,20 +204,17 @@ async def analyze_document_structure(document_preview: str, doc_length: int):
     - Position information
     - Metadata (key topics, importance, etc.)
     """
-)
-async def segment_semantically(document: str, strategy: str, segment_types: str):
-    """Perform semantic segmentation of document."""
-    pass
 
 
 # Step 3: Summarize segments
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=SegmentSummary,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=SegmentSummary,
 )
-@prompt_template(
-    """
+async def summarize_segment(segment_id: str, title: str, content: str) -> str:
+    """Generate summary for a document segment."""
+    return f"""
     Summarize this document segment concisely.
 
     Segment title: {title}
@@ -233,10 +228,6 @@ async def segment_semantically(document: str, strategy: str, segment_types: str)
 
     Focus on the most important information and insights.
     """
-)
-async def summarize_segment(segment_id: str, title: str, content: str):
-    """Generate summary for a document segment."""
-    pass
 
 
 # Main document segmentation function

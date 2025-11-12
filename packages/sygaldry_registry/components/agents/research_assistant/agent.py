@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from mirascope import llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Any, Optional
 
@@ -53,12 +53,13 @@ class ResearchReportResponse(BaseModel):
 
 # Step 1: Generate search queries
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=SearchQueriesResponse,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=SearchQueriesResponse,
 )
-@prompt_template(
-    """
+async def generate_search_queries(topic: str, depth: str = "comprehensive", num_queries: int = 5) -> str:
+    """Generate diverse search queries for research."""
+    return f"""
     You are a research expert planning searches for a comprehensive report on a topic.
 
     Topic: {topic}
@@ -80,20 +81,17 @@ class ResearchReportResponse(BaseModel):
 
     Generate {num_queries} diverse queries.
     """
-)
-async def generate_search_queries(topic: str, depth: str = "comprehensive", num_queries: int = 5):
-    """Generate diverse search queries for research."""
-    pass
 
 
 # Step 2: Search and collect information
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
     tools=[exa_search, exa_answer] if EXA_AVAILABLE else [],
 )
-@prompt_template(
-    """
+async def collect_research_data(topic: str, queries: str) -> str:
+    """Collect research data using Exa search."""
+    return f"""
     You are a research assistant collecting information on a topic.
 
     Topic: {topic}
@@ -112,20 +110,17 @@ async def generate_search_queries(topic: str, depth: str = "comprehensive", num_
 
     Execute all searches and collect the results.
     """
-)
-async def collect_research_data(topic: str, queries: str):
-    """Collect research data using Exa search."""
-    pass
 
 
 # Step 3: Synthesize research report
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=ResearchReportResponse,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=ResearchReportResponse,
 )
-@prompt_template(
-    """
+async def synthesize_research_report(topic: str, research_data: str, style: str, audience: str, target_words: int) -> str:
+    """Synthesize collected data into a research report."""
+    return f"""
     You are an expert research writer creating a comprehensive report.
 
     Topic: {topic}
@@ -159,10 +154,6 @@ async def collect_research_data(topic: str, queries: str):
 
     Create a comprehensive report of approximately {target_words} words.
     """
-)
-async def synthesize_research_report(topic: str, research_data: str, style: str, audience: str, target_words: int):
-    """Synthesize collected data into a research report."""
-    pass
 
 
 async def research_topic(

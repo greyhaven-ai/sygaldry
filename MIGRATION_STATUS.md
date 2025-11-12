@@ -28,80 +28,73 @@
   - @llm.call decorator parameter updates
   - Detection of manual conversion needs
 
-## 🚧 In Progress / Remaining
+## ✅ Phase 2: Complete Migration (Complete)
 
-### 4. POC Agent - Function Conversions (0% complete)
-Files: `packages/sygaldry_registry/components/agents/multi_source_news_verification/agent_v2.py`
+### 4. POC Agent - All Functions (100% complete)
+- [x] Converted all 7 tools from BaseTool classes to @llm.tool functions
+- [x] Converted all 5 agent functions to functional prompts
+- [x] Main orchestration functions converted
+- [x] Streaming variant converted
+- [x] File: `agent.py` (fully migrated)
 
-**Functions to convert (5):**
+### 5. Automated Migration (100% complete)
+- [x] Created `migrate_to_v2.py` automation script
+- [x] Ran automation on all 25 agent files
+- [x] 24/25 agents received automated updates (POC already done)
+- [x] Automated changes:
+  - Import updates
+  - Decorator parameter conversions
+  - Provider updates
+  - Detection of manual conversion needs
 
-#### a. `assess_source_credibility()` (lines 517-583)
-**Current (v1):**
-```python
-@llm.call(provider="openai", model="gpt-4o", response_model=list[SourceCredibility], tools=[WebSearchTool])
-@prompt_template("""SYSTEM: ... USER: ... {sources} {context}...""")
-def assess_source_credibility(sources, context="", topic_area="", time_period="current"):
-    pass
-```
+### 6. Manual Prompt Template Conversions (100% complete)
 
-**Needs to become (v2):**
-```python
-@llm.call(provider="openai:completions", model_id="gpt-4o", format=list[SourceCredibility], tools=[web_search])
-def assess_source_credibility(sources, context="", topic_area="", time_period="current") -> str:
-    return f"""SYSTEM:
-You are an expert media literacy specialist...
+**All 25 agents successfully converted:**
 
-USER:
-Assess the credibility of these news sources:
+#### Simple Agents (1 @prompt_template each - 6 agents):
+- [x] sales_intelligence
+- [x] market_intelligence
+- [x] recruiting_assistant
+- [x] sourcing_assistant
+- [x] academic_research
+- [x] web_search
 
-Sources: {sources}
-Context: {context}
-Topic Area: {topic_area}
-Time Period: {time_period}
-..."""
-```
+#### Medium Agents (2 @prompt_template each - 1 agent):
+- [x] pii_scrubbing
 
-**Effort:** ~30 minutes (long template to convert)
+#### Standard Agents (3 @prompt_template each - 6 agents):
+- [x] hallucination_detector
+- [x] research_assistant
+- [x] knowledge_graph
+- [x] code_generation_execution
+- [x] document_segmentation
+- [x] game_playing_dnd
 
-#### b. `analyze_news_content()` (lines 586-665)
-- Similar conversion pattern
-- **Effort:** ~30 minutes
+#### Complex Agents (4 @prompt_template each - 3 agents):
+- [x] dataset_builder
+- [x] enhanced_knowledge_graph
+- [x] text_summarization
 
-#### c. `fact_check_claims()` (lines 668-759)
-- Has 7 tools in decorator
-- **Effort:** ~45 minutes
+#### Advanced Agents (5 @prompt_template each - 6 agents):
+- [x] dynamic_learning_path
+- [x] game_playing_catan
+- [x] game_playing_diplomacy
+- [x] game_theory_analysis
+- [x] multi_agent_coordinator
+- [x] prompt_engineering_optimizer
 
-#### d. `create_media_literacy_report()` (lines 762-820)
-- Uses `BaseDynamicConfig` return
-- Needs conversion to simple return string
-- **Effort:** ~30 minutes
+#### Most Complex Agents (6 @prompt_template each - 2 agents):
+- [x] decision_quality_assessor
+- [x] multi_platform_social_media_manager
 
-#### e. `synthesize_news_verification()` (lines 823-888)
-- Uses `BaseDynamicConfig` return
-- **Effort:** ~30 minutes
+**Total @prompt_template decorators converted:** ~100+
 
-**Total Function Conversion:** ~3 hours
+### 7. Provider/Model Fixes (100% complete)
+- [x] Fixed literal {provider} strings in game agents
+- [x] Set default providers (openai:completions)
+- [x] Set default models (gpt-4o-mini)
 
-### 5. POC Agent - Main Functions (0% complete)
-- [ ] `multi_source_news_verification()` (lines 891-1103)
-  - Main orchestration function
-  - 200+ lines
-  - **Effort:** ~1 hour
-
-- [ ] `multi_source_news_verification_stream()` (lines 1106-1201)
-  - Streaming variant
-  - **Effort:** ~30 minutes
-
-### 6. POC Agent - Testing (0% complete)
-- [ ] Update test file for v2 API
-- [ ] Run tests
-- [ ] Fix failures
-- **Effort:** ~2 hours
-
-### 7. Apply to All Agents (0% complete)
-Using POC as template, convert:
-- [ ] 19 remaining agent files
-- **Effort:** ~20-30 hours (1-1.5 hours per agent)
+## 🚧 Remaining Work
 
 ### 8. Test Infrastructure (0% complete)
 - [ ] Update `tests/utils/mirascope_test_helpers.py`
@@ -123,8 +116,17 @@ Using POC as template, convert:
 
 ## Summary
 
-**Completed:** ~8 hours of work
-**Remaining:** ~40-55 hours of work
+**Completed:** ~20-25 hours of work
+- ✅ All 25 agents converted to Mirascope v2
+- ✅ All ~100+ @prompt_template decorators converted to functional prompts
+- ✅ All decorator parameters updated (provider, model_id, format)
+- ✅ All literal {provider} strings fixed
+- ✅ 0 @prompt_template decorators remaining
+
+**Remaining:** ~14-24 hours of work
+- Test infrastructure updates
+- Documentation updates
+- Final verification and testing
 
 ### Critical Path Forward
 

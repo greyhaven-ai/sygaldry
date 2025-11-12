@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime, timedelta
 from enum import Enum
-from mirascope import BaseDynamicConfig, llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -114,12 +114,15 @@ class LearningPath(BaseModel):
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=list[SkillAssessment],
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=list[SkillAssessment],
 )
-@prompt_template(
-    """
+def assess_current_skills(
+    background: str, experience: str, learning_goals: str, self_assessment: str = ""
+) -> str:
+    """Assess learner's current skill levels."""
+    return f"""
     SYSTEM:
     You are an expert learning assessment specialist. Your role is to evaluate a learner's
     current skill levels based on their background, experience, and self-reported knowledge.
@@ -148,21 +151,22 @@ class LearningPath(BaseModel):
 
     Provide detailed skill assessments with evidence and identified gaps.
     """
-)
-def assess_current_skills(
-    background: str, experience: str, learning_goals: str, self_assessment: str = ""
-) -> list[SkillAssessment]:
-    """Assess learner's current skill levels."""
-    pass
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=list[LearningGoal],
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=list[LearningGoal],
 )
-@prompt_template(
-    """
+def design_learning_goals(
+    current_skills: list[SkillAssessment],
+    desired_outcomes: str,
+    available_time: str,
+    learning_preferences: str = "",
+    constraints: str = "",
+) -> str:
+    """Design specific learning goals based on assessment."""
+    return f"""
     SYSTEM:
     You are an expert learning goal designer. Your role is to create specific, measurable,
     achievable, relevant, and time-bound (SMART) learning goals based on the learner's
@@ -187,29 +191,23 @@ def assess_current_skills(
 
     Design a set of prioritized, achievable learning goals with clear success criteria.
     """
-)
-def design_learning_goals(
-    current_skills: list[SkillAssessment],
-    desired_outcomes: str,
-    available_time: str,
-    learning_preferences: str = "",
-    constraints: str = "",
-) -> BaseDynamicConfig:
-    """Design specific learning goals based on assessment."""
-    return {
-        "computed_fields": {
-            "current_skills": current_skills,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=list[LearningResource],
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=list[LearningResource],
 )
-@prompt_template(
-    """
+def curate_learning_resources(
+    learning_goals: list[LearningGoal],
+    current_level: str,
+    learning_style: str,
+    time_constraints: str = "",
+    topics: str = "",
+    budget: str = "Mixed",
+) -> str:
+    """Curate appropriate learning resources."""
+    return f"""
     SYSTEM:
     You are an expert learning resource curator. Your role is to identify and recommend
     high-quality learning resources that match the learner's goals, style, and skill level.
@@ -249,30 +247,23 @@ def design_learning_goals(
 
     Recommend diverse, high-quality resources that support these learning goals.
     """
-)
-def curate_learning_resources(
-    learning_goals: list[LearningGoal],
-    current_level: str,
-    learning_style: str,
-    time_constraints: str = "",
-    topics: str = "",
-    budget: str = "Mixed",
-) -> BaseDynamicConfig:
-    """Curate appropriate learning resources."""
-    return {
-        "computed_fields": {
-            "learning_goals": learning_goals,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=LearningPath,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=LearningPath,
 )
-@prompt_template(
-    """
+def design_learning_path(
+    learning_goals: list[LearningGoal],
+    resources: list[LearningResource],
+    learner_profile: str,
+    time_constraints: str = "",
+    success_criteria: str = "",
+    career_goals: str = "",
+) -> str:
+    """Design comprehensive learning path."""
+    return f"""
     SYSTEM:
     You are an expert learning path architect. Your role is to design comprehensive,
     personalized learning paths that efficiently guide learners from their current
@@ -310,31 +301,16 @@ def curate_learning_resources(
 
     Create a structured, adaptive learning path with clear modules and progression.
     """
-)
-def design_learning_path(
-    learning_goals: list[LearningGoal],
-    resources: list[LearningResource],
-    learner_profile: str,
-    time_constraints: str = "",
-    success_criteria: str = "",
-    career_goals: str = "",
-) -> BaseDynamicConfig:
-    """Design comprehensive learning path."""
-    return {
-        "computed_fields": {
-            "learning_goals": learning_goals,
-            "resources": resources,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=str,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=str,
 )
-@prompt_template(
-    """
+def generate_adaptive_recommendations(progress: str, challenges: str, learning_path: str, time_spent: str) -> str:
+    """Generate adaptive recommendations based on progress."""
+    return f"""
     SYSTEM:
     You are an expert learning advisor. Provide personalized learning recommendations
     based on the learner's progress and challenges.
@@ -349,10 +325,6 @@ def design_learning_path(
 
     Suggest adjustments to optimize their learning journey.
     """
-)
-def generate_adaptive_recommendations(progress: str, challenges: str, learning_path: str, time_spent: str) -> str:
-    """Generate adaptive recommendations based on progress."""
-    pass
 
 
 async def dynamic_learning_path_generator(

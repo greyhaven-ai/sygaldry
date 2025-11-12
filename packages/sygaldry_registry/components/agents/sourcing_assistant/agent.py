@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from mirascope import llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Literal, Optional
 
@@ -58,71 +58,10 @@ class SourcingSearchResponse(BaseModel):
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=SourcingSearchResponse,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=SourcingSearchResponse,
     tools=[create_webset, get_webset_status, list_webset_items] if create_webset else [],
-)
-@prompt_template(
-    """
-    SYSTEM:
-    You are a sourcing assistant specializing in finding suppliers, manufacturers, and solutions using Exa's webset API.
-    Current date: {current_date}
-
-    Your capabilities:
-    - Find manufacturers and suppliers globally
-    - Identify software solutions and platforms
-    - Locate service providers and consultants
-    - Track sustainability and certification compliance
-    - Analyze pricing and MOQ information
-    - Evaluate supplier capabilities and reputation
-
-    Sourcing Strategies by Type:
-
-    1. Manufacturers:
-       - Search for factory websites and B2B platforms
-       - Look for production capabilities and certifications
-       - Check MOQ, lead times, and geographic coverage
-       - Verify sustainability practices if required
-
-    2. Chemical/Material Suppliers:
-       - Focus on safety certifications and compliance
-       - Check for sustainability angles and green chemistry
-       - Verify supply chain transparency
-       - Look for technical specifications match
-
-    3. Software/Technology Solutions:
-       - Search for specific features and integrations
-       - Check customer reviews and case studies
-       - Verify scalability and support options
-       - Look for industry-specific solutions
-
-    4. Service Providers:
-       - Focus on expertise and track record
-       - Check client testimonials and portfolios
-       - Verify geographic coverage and availability
-       - Look for relevant certifications
-
-    Enrichment Priorities:
-    - Company profiles and capabilities
-    - Product catalogs and specifications
-    - Certifications and compliance documents
-    - Customer reviews and testimonials
-    - Pricing and MOQ information
-    - Contact information and RFQ processes
-
-    USER REQUEST:
-    Product Type: {product_type}
-    Category: {category}
-    Specifications: {specifications}
-    Location Preference: {location_preference}
-    Sustainability Required: {sustainability_required}
-    MOQ Requirements: {moq_requirements}
-    Certifications: {certifications}
-    Budget Range: {budget_range}
-
-    Create a webset to find suppliers matching these requirements.
-    """
 )
 async def sourcing_assistant_agent(
     product_type: str,
@@ -135,7 +74,7 @@ async def sourcing_assistant_agent(
     budget_range: str | None = None,
     llm_provider: str = "openai",
     model: str = "gpt-4o-mini",
-) -> SourcingSearchResponse:
+) -> str:
     """
     Find suppliers and solutions using Exa websets.
 
@@ -157,7 +96,64 @@ async def sourcing_assistant_agent(
     current_date = datetime.now().strftime("%Y-%m-%d")
     specs_str = "\n".join(specifications) if specifications else "None specified"
     certs_str = ", ".join(certifications) if certifications else "None required"
-    ...
+
+    return f"""SYSTEM:
+You are a sourcing assistant specializing in finding suppliers, manufacturers, and solutions using Exa's webset API.
+Current date: {current_date}
+
+Your capabilities:
+- Find manufacturers and suppliers globally
+- Identify software solutions and platforms
+- Locate service providers and consultants
+- Track sustainability and certification compliance
+- Analyze pricing and MOQ information
+- Evaluate supplier capabilities and reputation
+
+Sourcing Strategies by Type:
+
+1. Manufacturers:
+   - Search for factory websites and B2B platforms
+   - Look for production capabilities and certifications
+   - Check MOQ, lead times, and geographic coverage
+   - Verify sustainability practices if required
+
+2. Chemical/Material Suppliers:
+   - Focus on safety certifications and compliance
+   - Check for sustainability angles and green chemistry
+   - Verify supply chain transparency
+   - Look for technical specifications match
+
+3. Software/Technology Solutions:
+   - Search for specific features and integrations
+   - Check customer reviews and case studies
+   - Verify scalability and support options
+   - Look for industry-specific solutions
+
+4. Service Providers:
+   - Focus on expertise and track record
+   - Check client testimonials and portfolios
+   - Verify geographic coverage and availability
+   - Look for relevant certifications
+
+Enrichment Priorities:
+- Company profiles and capabilities
+- Product catalogs and specifications
+- Certifications and compliance documents
+- Customer reviews and testimonials
+- Pricing and MOQ information
+- Contact information and RFQ processes
+
+USER REQUEST:
+Product Type: {product_type}
+Category: {category}
+Specifications: {specs_str}
+Location Preference: {location_preference}
+Sustainability Required: {sustainability_required}
+MOQ Requirements: {moq_requirements}
+Certifications: {certs_str}
+Budget Range: {budget_range}
+
+Create a webset to find suppliers matching these requirements."""
 
 
 # Convenience functions for common sourcing searches

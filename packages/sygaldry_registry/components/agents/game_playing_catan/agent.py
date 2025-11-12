@@ -6,7 +6,7 @@ from collections import defaultdict
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from enum import Enum
-from mirascope import BaseDynamicConfig, llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Any, Optional
 
@@ -206,12 +206,23 @@ PERSONALITY_PROMPTS = {
 
 
 @llm.call(
-    provider="{provider}",
-    model="{model}",
-    response_model=StrategicAnalysis,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=StrategicAnalysis,
 )
-@prompt_template(
-    """
+def analyze_catan_strategy(
+    player_id: int,
+    game_state: CatanState,
+    player_resources: dict[Resource, int],
+    opponent_analysis: str,
+    board_position: str,
+    turn_number: int,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o",
+) -> str:
+    """Analyze the strategic situation for a Catan player."""
+    return f"""
     SYSTEM:
     You are an expert Catan player analyzing the current game state.
     {personality_prompt}
@@ -245,34 +256,26 @@ PERSONALITY_PROMPTS = {
 
     Provide comprehensive strategic analysis with opportunities and threats.
     """
-)
-def analyze_catan_strategy(
-    player_id: int,
-    game_state: CatanState,
-    player_resources: dict[Resource, int],
-    opponent_analysis: str,
-    board_position: str,
-    turn_number: int,
-    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
-    provider: str = "openai",
-    model: str = "gpt-4o",
-) -> BaseDynamicConfig:
-    """Analyze the strategic situation for a Catan player."""
-    return {
-        "computed_fields": {
-            "game_state": game_state,
-            "player_resources": player_resources,
-        }
-    }
 
 
 @llm.call(
-    provider="{provider}",
-    model="{model}",
-    response_model=list[TradeOffer],
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=list[TradeOffer],
 )
-@prompt_template(
-    """
+def develop_trade_proposals(
+    player_id: int,
+    current_resources: dict[Resource, int],
+    needed_resources: list[Resource],
+    strategic_goals: str,
+    opponent_resources: str,
+    available_ports: list[str],
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o",
+) -> str:
+    """Develop trade proposals for the current situation."""
+    return f"""
     SYSTEM:
     You are a master Catan trader for Player {player_id}.
     {personality_prompt}
@@ -301,29 +304,26 @@ def analyze_catan_strategy(
 
     Create beneficial trade proposals that advance your strategy.
     """
-)
-def develop_trade_proposals(
-    player_id: int,
-    current_resources: dict[Resource, int],
-    needed_resources: list[Resource],
-    strategic_goals: str,
-    opponent_resources: str,
-    available_ports: list[str],
-    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
-    provider: str = "openai",
-    model: str = "gpt-4o",
-) -> list[TradeOffer]:
-    """Develop trade proposals for the current situation."""
-    pass
 
 
 @llm.call(
-    provider="{provider}",
-    model="{model}",
-    response_model=CatanAction,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=CatanAction,
 )
-@prompt_template(
-    """
+def plan_building_action(
+    player_id: int,
+    available_resources: dict[Resource, int],
+    possible_builds: list[str],
+    strategic_analysis: StrategicAnalysis,
+    board_state: str,
+    victory_points: int,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o",
+) -> str:
+    """Plan the best building action for the current turn."""
+    return f"""
     SYSTEM:
     You are making building decisions for Player {player_id} in Catan.
     {personality_prompt}
@@ -358,33 +358,26 @@ def develop_trade_proposals(
 
     Choose the best building action with clear reasoning.
     """
-)
-def plan_building_action(
-    player_id: int,
-    available_resources: dict[Resource, int],
-    possible_builds: list[str],
-    strategic_analysis: StrategicAnalysis,
-    board_state: str,
-    victory_points: int,
-    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
-    provider: str = "openai",
-    model: str = "gpt-4o",
-) -> BaseDynamicConfig:
-    """Plan the best building action for the current turn."""
-    return {
-        "computed_fields": {
-            "strategic_analysis": strategic_analysis,
-        }
-    }
 
 
 @llm.call(
-    provider="{provider}",
-    model="{model}",
-    response_model=CatanAction,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=CatanAction,
 )
-@prompt_template(
-    """
+def handle_robber_action(
+    player_id: int,
+    current_robber_position: tuple[int, int],
+    player_positions: str,
+    resource_production: str,
+    player_standings: str,
+    strategic_goals: str,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o",
+) -> str:
+    """Decide where to move the robber and who to steal from."""
+    return f"""
     SYSTEM:
     You are handling the robber for Player {player_id} in Catan.
     {personality_prompt}
@@ -412,29 +405,27 @@ def plan_building_action(
 
     Choose optimal robber placement and stealing target.
     """
-)
-def handle_robber_action(
-    player_id: int,
-    current_robber_position: tuple[int, int],
-    player_positions: str,
-    resource_production: str,
-    player_standings: str,
-    strategic_goals: str,
-    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
-    provider: str = "openai",
-    model: str = "gpt-4o",
-) -> CatanAction:
-    """Decide where to move the robber and who to steal from."""
-    pass
 
 
 @llm.call(
-    provider="{provider}",
-    model="{model}",
-    response_model=list[CatanAction],
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=list[CatanAction],
 )
-@prompt_template(
-    """
+def plan_complete_turn(
+    player_id: int,
+    current_phase: CatanPhase,
+    resources: dict[Resource, int],
+    strategic_analysis: StrategicAnalysis,
+    trade_opportunities: list[TradeOffer],
+    building_options: str,
+    victory_points: int,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o",
+) -> str:
+    """Plan all actions for the current turn."""
+    return f"""
     SYSTEM:
     You are planning the complete turn for Player {player_id} in Catan.
     {personality_prompt}
@@ -466,26 +457,6 @@ def handle_robber_action(
 
     Provide ordered list of actions for this turn with reasoning.
     """
-)
-def plan_complete_turn(
-    player_id: int,
-    current_phase: CatanPhase,
-    resources: dict[Resource, int],
-    strategic_analysis: StrategicAnalysis,
-    trade_opportunities: list[TradeOffer],
-    building_options: str,
-    victory_points: int,
-    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
-    provider: str = "openai",
-    model: str = "gpt-4o",
-) -> BaseDynamicConfig:
-    """Plan all actions for the current turn."""
-    return {
-        "computed_fields": {
-            "strategic_analysis": strategic_analysis,
-            "trade_opportunities": trade_opportunities,
-        }
-    }
 
 
 async def process_human_catan_input(game: CatanGame, human_player: CatanPlayer, phase: CatanPhase) -> CatanAction:

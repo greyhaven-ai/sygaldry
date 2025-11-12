@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from enum import Enum
-from mirascope import BaseDynamicConfig, llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Any, Optional
 
@@ -72,12 +72,13 @@ class CoordinationResult(BaseModel):
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=TaskBreakdown,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=TaskBreakdown,
 )
-@prompt_template(
-    """
+def analyze_task_breakdown(task: str, context: str = "", requirements: str = "") -> str:
+    """Analyze and break down a complex task into manageable subtasks."""
+    return f"""
     SYSTEM:
     You are an expert task decomposition specialist. Your role is to break down complex,
     multi-faceted problems into manageable subtasks that can be handled by specialized agents.
@@ -98,19 +99,16 @@ class CoordinationResult(BaseModel):
 
     Analyze the task and provide a detailed breakdown with dependencies and complexity assessment.
     """
-)
-def analyze_task_breakdown(task: str, context: str = "", requirements: str = "") -> TaskBreakdown:
-    """Analyze and break down a complex task into manageable subtasks."""
-    pass
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=list[AgentSelection],
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=list[AgentSelection],
 )
-@prompt_template(
-    """
+def select_agents_for_subtasks(subtasks: list[str], context: str = "") -> str:
+    """Select appropriate agents for each subtask."""
+    return f"""
     SYSTEM:
     You are an expert agent selection specialist. Your role is to assign the most appropriate
     specialized agents to each subtask based on their capabilities and the task requirements.
@@ -144,19 +142,18 @@ def analyze_task_breakdown(task: str, context: str = "", requirements: str = "")
 
     For each subtask, select the most appropriate primary agent and any supporting agents needed.
     """
-)
-def select_agents_for_subtasks(subtasks: list[str], context: str = "") -> list[AgentSelection]:
-    """Select appropriate agents for each subtask."""
-    pass
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=CoordinationPlan,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=CoordinationPlan,
 )
-@prompt_template(
-    """
+def create_coordination_plan(
+    task_breakdown: TaskBreakdown, agent_assignments: list[AgentSelection], original_task: str
+) -> str:
+    """Create a comprehensive coordination plan for multi-agent execution."""
+    return f"""
     SYSTEM:
     You are an expert coordination planner. Your role is to create an optimal execution plan
     for multi-agent task completion, considering dependencies, parallelization opportunities,
@@ -179,26 +176,18 @@ def select_agents_for_subtasks(subtasks: list[str], context: str = "") -> list[A
 
     Provide a comprehensive execution plan with timing, parallelization, and risk assessment.
     """
-)
-def create_coordination_plan(
-    task_breakdown: TaskBreakdown, agent_assignments: list[AgentSelection], original_task: str
-) -> BaseDynamicConfig:
-    """Create a comprehensive coordination plan for multi-agent execution."""
-    return {
-        "computed_fields": {
-            "task_breakdown": task_breakdown,
-            "agent_assignments": agent_assignments,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=CoordinationResult,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=CoordinationResult,
 )
-@prompt_template(
-    """
+def synthesize_final_result(
+    original_task: str, coordination_plan: CoordinationPlan, subtask_results: dict[str, str], execution_notes: str = ""
+) -> str:
+    """Synthesize final result from all agent outputs."""
+    return f"""
     SYSTEM:
     You are an expert result synthesizer. Your role is to combine results from multiple
     specialized agents into a coherent, comprehensive final answer.
@@ -221,17 +210,6 @@ def create_coordination_plan(
 
     Provide a comprehensive final answer with quality assessment and recommendations.
     """
-)
-def synthesize_final_result(
-    original_task: str, coordination_plan: CoordinationPlan, subtask_results: dict[str, str], execution_notes: str = ""
-) -> BaseDynamicConfig:
-    """Synthesize final result from all agent outputs."""
-    return {
-        "computed_fields": {
-            "coordination_plan": coordination_plan,
-            "subtask_results": subtask_results,
-        }
-    }
 
 
 async def execute_subtask_with_agent(
@@ -281,9 +259,9 @@ async def execute_subtask_with_agent(
             # Add more agent integrations as needed
             else:
                 # Fallback to LLM-based execution
-                @llm.call(provider="openai", model="gpt-4o-mini")
-                @prompt_template(
-                    """
+                @llm.call(provider="openai:completions", model_id="gpt-4o-mini")
+                def execute_generic_subtask(subtask: str, agent_capability: str, context: str = "") -> str:
+                    return f"""
                     Execute this subtask using {agent_capability} capabilities:
 
                     Subtask: {subtask}
@@ -291,8 +269,6 @@ async def execute_subtask_with_agent(
 
                     Provide a detailed result for this specific subtask.
                     """
-                )
-                def execute_generic_subtask(subtask: str, agent_capability: str, context: str = "") -> str: ...
 
                 result = await execute_generic_subtask(subtask, agent_capability.value, context)
                 return result.content if hasattr(result, 'content') else str(result)
