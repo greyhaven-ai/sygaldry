@@ -7,20 +7,23 @@ This is a Sygaldry AI framework project that provides reusable components for LL
 ## Technical Stack
 
 - **Language**: Python 3.12+
-- **LLM Framework**: Mirascope
+- **LLM Framework**: Mirascope v2.0.0-alpha.1
 - **Data Validation**: Pydantic
 - **Component System**: Sygaldry Registry
 - **Observability**: Lilypad (optional)
 
 ## Development Principles
 
-### Mirascope Best Practices
+### Mirascope v2 Best Practices
 
-1. **Prompt Templates**: Always use `@prompt_template` decorators
-2. **Response Models**: Define Pydantic models for structured LLM outputs
-3. **Async Patterns**: Use `async def` for all LLM calls and tools
-4. **Multi-Provider**: Support OpenAI, Anthropic, Google, etc.
-5. **Error Handling**: Implement comprehensive validation and error recovery
+1. **Functional Prompts**: Functions return formatted prompt strings (f-strings) instead of using `@prompt_template` decorators
+2. **Format Models**: Use `format=` parameter (replaces `response_model=`) for structured LLM outputs
+3. **Provider Specification**: Use full provider syntax (e.g., `provider="openai:completions"`)
+4. **Model ID**: Use `model_id=` parameter (replaces `model=`)
+5. **Function-Based Tools**: Use `@llm.tool` decorated functions instead of `BaseTool` classes
+6. **Async Patterns**: Continue using `async def` for all LLM calls and tools
+7. **Multi-Provider**: Support OpenAI, Anthropic, Google, etc.
+8. **Error Handling**: Implement comprehensive validation and error recovery
 
 ### Component Architecture
 
@@ -114,31 +117,69 @@ This is a Sygaldry AI framework project that provides reusable components for LL
 - OPENAI_API_KEY: OpenAI API key for LLM calls
 - YOUTUBE_API_KEY: YouTube Data API v3 key
 
-## Common Patterns
+## Common Patterns (Mirascope v2)
 
 ### Basic Agent Structure
 
 ```python
-from mirascope.core import BaseModel, prompt_template
-from mirascope.integrations.openai import OpenAICall
+from mirascope import llm
+from pydantic import BaseModel, Field
 
 class ResponseModel(BaseModel):
-    answer: str
-    confidence: float
+    answer: str = Field(..., description="The answer to the question")
+    confidence: float = Field(..., description="Confidence score 0-1")
 
-@OpenAICall("gpt-4o-mini", response_model=ResponseModel)
-@prompt_template("Answer this question: {question}")
-def my_agent(question: str): ...
+@llm.call(provider="openai:completions", model_id="gpt-4o-mini", format=ResponseModel)
+def my_agent(question: str) -> str:
+    """Answer questions with confidence scoring."""
+    return f"""You are a helpful assistant. Answer this question concisely and provide a confidence score.
+
+Question: {question}
+
+Provide your answer and a confidence score between 0 and 1."""
 ```
 
 ### Tool Implementation
 
 ```python
-from mirascope.core import tool
+from mirascope import llm
 
-@tool
-def search_web(query: str) -> str:
-    """Search the web for information."""
+@llm.tool
+def search_web(query: str, max_results: int = 5) -> str:
+    """Search the web for information.
+
+    Args:
+        query: The search query
+        max_results: Maximum number of results to return
+
+    Returns:
+        Search results as formatted text
+    """
     # Implementation here
     return "search results"
+```
+
+### Agent with Tools
+
+```python
+from mirascope import llm
+from pydantic import BaseModel, Field
+
+class SearchResult(BaseModel):
+    answer: str = Field(..., description="Answer based on search results")
+    sources: list[str] = Field(..., description="Source URLs used")
+
+@llm.call(
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=SearchResult,
+    tools=[search_web]
+)
+def research_agent(question: str) -> str:
+    """Research questions using web search."""
+    return f"""You are a research assistant with access to web search.
+
+Question: {question}
+
+Use the search_web tool to find relevant information, then provide a comprehensive answer with sources."""
 ```
