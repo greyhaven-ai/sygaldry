@@ -8,7 +8,7 @@ import time
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from enum import Enum
-from mirascope import BaseDynamicConfig, llm, prompt_template
+from mirascope import llm
 
 # Import our tools
 from packages.sygaldry_registry.components.tools.dice_roller.tool import (
@@ -1815,9 +1815,9 @@ async def search_content(
 
 
 @llm.call(
-    provider="{provider}",
-    model="{model}",
-    response_model=DMResponse,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=DMResponse,
     tools=[
         roll_for_action,
         roll_ability_check,
@@ -1840,8 +1840,20 @@ async def search_content(
         search_content,
     ],
 )
-@prompt_template(
-    """
+def generate_dm_response(
+    game_state: GameState,
+    recent_actions: list[PlayerAction],
+    player_requests: dict[str, str],
+    current_phase: GamePhase,
+    special_considerations: str = "",
+    campaign_name: str = "The Lost Mines of Phandelver",
+    campaign_tone: str = "Classic fantasy adventure with mystery elements",
+    dm_style: str = "Engaging storyteller who balances combat, roleplay, and exploration",
+    provider: str = "openai",
+    model: str = "gpt-4o",
+) -> str:
+    """Generate DM response to game situation."""
+    return f"""
     SYSTEM:
     You are an expert Dungeon Master running a D&D 5th Edition game.
     Your style is {dm_style}.
@@ -1919,32 +1931,12 @@ async def search_content(
     5. Applies conditions when needed
     6. Prompts for the next player actions
     """
-)
-def generate_dm_response(
-    game_state: GameState,
-    recent_actions: list[PlayerAction],
-    player_requests: dict[str, str],
-    current_phase: GamePhase,
-    special_considerations: str = "",
-    campaign_name: str = "The Lost Mines of Phandelver",
-    campaign_tone: str = "Classic fantasy adventure with mystery elements",
-    dm_style: str = "Engaging storyteller who balances combat, roleplay, and exploration",
-    provider: str = "openai",
-    model: str = "gpt-4o",
-) -> BaseDynamicConfig:
-    """Generate DM response to game situation."""
-    return {
-        "computed_fields": {
-            "game_state": game_state,
-            "recent_actions": recent_actions,
-        }
-    }
 
 
 @llm.call(
-    provider="{provider}",
-    model="{model}",
-    response_model=PlayerAction,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=PlayerAction,
     tools=[
         roll_for_action,
         roll_ability_check,
@@ -1958,8 +1950,38 @@ def generate_dm_response(
         lookup_skill,
     ],
 )
-@prompt_template(
-    """
+def generate_ai_player_action(
+    character_name: str,
+    level: int,
+    race: str,
+    character_class: str,
+    personality: str,
+    background: str,
+    stats: str,
+    current_hp: int,
+    max_hp: int,
+    movement_remaining: int,
+    actions_available: int,
+    bonus_actions_available: int,
+    reactions_available: int,
+    spell_slots: str,
+    conditions: str,
+    position: str,
+    proficient_skills: str,
+    saving_throws: str,
+    available_attacks: str,
+    spells_known: str,
+    scene_description: str,
+    dm_prompt: str,
+    party_status: str,
+    your_position: str,
+    enemies_visible: str,
+    available_options: str,
+    provider: str = "openai",
+    model: str = "gpt-4o-mini",
+) -> str:
+    """Generate AI player action."""
+    return f"""
     SYSTEM:
     You are playing {character_name}, a level {level} {race} {character_class} in a D&D game.
 
@@ -2026,48 +2048,29 @@ def generate_dm_response(
     Use tools for any dice rolls or rule lookups needed.
     Specify target positions as coordinates if moving.
     """
-)
-def generate_ai_player_action(
-    character_name: str,
-    level: int,
-    race: str,
-    character_class: str,
-    personality: str,
-    background: str,
-    stats: str,
-    current_hp: int,
-    max_hp: int,
-    movement_remaining: int,
-    actions_available: int,
-    bonus_actions_available: int,
-    reactions_available: int,
-    spell_slots: str,
-    conditions: str,
-    position: str,
-    proficient_skills: str,
-    saving_throws: str,
-    available_attacks: str,
-    spells_known: str,
-    scene_description: str,
-    dm_prompt: str,
-    party_status: str,
-    your_position: str,
-    enemies_visible: str,
-    available_options: str,
-    provider: str = "openai",
-    model: str = "gpt-4o-mini",
-) -> BaseDynamicConfig:
-    """Generate AI player action."""
-    return {}
 
 
 @llm.call(
-    provider="{provider}",
-    model="{model}",
-    response_model=RoleplayExchange,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=RoleplayExchange,
 )
-@prompt_template(
-    """
+def generate_character_dialogue(
+    character_name: str,
+    personality: str,
+    speaking_style: str,
+    current_mood: str,
+    relationships: str,
+    scene: str,
+    speaking_to: str,
+    previous_dialogue: str,
+    character_goal: str,
+    emotional_state: str,
+    provider: str = "openai",
+    model: str = "gpt-4o-mini",
+) -> str:
+    """Generate in-character dialogue."""
+    return f"""
     SYSTEM:
     You are roleplaying as {character_name} in a D&D game.
 
@@ -2095,23 +2098,6 @@ def generate_ai_player_action(
 
     Provide your character's response with appropriate dialogue and actions.
     """
-)
-def generate_character_dialogue(
-    character_name: str,
-    personality: str,
-    speaking_style: str,
-    current_mood: str,
-    relationships: str,
-    scene: str,
-    speaking_to: str,
-    previous_dialogue: str,
-    character_goal: str,
-    emotional_state: str,
-    provider: str = "openai",
-    model: str = "gpt-4o-mini",
-) -> BaseDynamicConfig:
-    """Generate in-character dialogue."""
-    return {}
 
 
 async def wait_for_human_input(request: HumanInputRequest, timeout: int | None = None) -> str | None:

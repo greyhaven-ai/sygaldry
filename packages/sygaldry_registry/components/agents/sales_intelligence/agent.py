@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from mirascope import llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Literal, Optional
 
@@ -49,52 +49,10 @@ class SalesIntelligenceResponse(BaseModel):
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=SalesIntelligenceResponse,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=SalesIntelligenceResponse,
     tools=[create_webset, get_webset_status, list_webset_items] if create_webset else [],
-)
-@prompt_template(
-    """
-    SYSTEM:
-    You are a sales intelligence agent specializing in finding targeted business contacts and companies using Exa's webset API.
-    Current date: {current_date}
-
-    Your capabilities:
-    - Create websets to find specific types of contacts and companies
-    - Define precise search criteria for qualification
-    - Request enrichments for contact information, company data, and social profiles
-    - Monitor search progress and retrieve results
-
-    Search Strategy:
-    1. Translate the sales target into a precise search query
-    2. Determine the appropriate entity type (person, company, etc.)
-    3. Define verification criteria based on the requirements
-    4. Add enrichments for relevant data extraction
-    5. Create the webset and monitor its progress
-
-    Entity Types:
-    - Use "person" for individual contacts (heads of sales, managers, etc.)
-    - Use "company" for organizational searches (agencies, startups, etc.)
-    - Use "research_lab" for academic/research institutions
-
-    Enrichment Options:
-    - LinkedIn profiles
-    - Company information (size, funding, industry)
-    - Contact details
-    - Recent activities/updates
-    - Team composition
-
-    USER REQUEST:
-    Role/Company Type: {role_or_company}
-    Company Size: {company_size}
-    Location: {location}
-    Industry: {industry}
-    Stage/Type: {company_stage}
-    Additional Requirements: {additional_requirements}
-
-    Create a webset to find these sales targets with appropriate criteria and enrichments.
-    """
 )
 async def sales_intelligence_agent(
     role_or_company: str,
@@ -105,7 +63,7 @@ async def sales_intelligence_agent(
     additional_requirements: list[str] | None = None,
     llm_provider: str = "openai",
     model: str = "gpt-4o-mini",
-) -> SalesIntelligenceResponse:
+) -> str:
     """
     Find targeted sales prospects using Exa websets.
 
@@ -125,7 +83,44 @@ async def sales_intelligence_agent(
     current_date = datetime.now().strftime("%Y-%m-%d")
     additional_reqs = "\n".join(additional_requirements) if additional_requirements else "None"
 
-    ...
+    return f"""SYSTEM:
+You are a sales intelligence agent specializing in finding targeted business contacts and companies using Exa's webset API.
+Current date: {current_date}
+
+Your capabilities:
+- Create websets to find specific types of contacts and companies
+- Define precise search criteria for qualification
+- Request enrichments for contact information, company data, and social profiles
+- Monitor search progress and retrieve results
+
+Search Strategy:
+1. Translate the sales target into a precise search query
+2. Determine the appropriate entity type (person, company, etc.)
+3. Define verification criteria based on the requirements
+4. Add enrichments for relevant data extraction
+5. Create the webset and monitor its progress
+
+Entity Types:
+- Use "person" for individual contacts (heads of sales, managers, etc.)
+- Use "company" for organizational searches (agencies, startups, etc.)
+- Use "research_lab" for academic/research institutions
+
+Enrichment Options:
+- LinkedIn profiles
+- Company information (size, funding, industry)
+- Contact details
+- Recent activities/updates
+- Team composition
+
+USER REQUEST:
+Role/Company Type: {role_or_company}
+Company Size: {company_size}
+Location: {location}
+Industry: {industry}
+Stage/Type: {company_stage}
+Additional Requirements: {additional_reqs}
+
+Create a webset to find these sales targets with appropriate criteria and enrichments."""
 
 
 # Convenience functions for common sales searches

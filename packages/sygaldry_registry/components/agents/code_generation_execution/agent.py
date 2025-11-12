@@ -5,7 +5,7 @@ import os
 import subprocess
 import tempfile
 from lilypad import trace
-from mirascope import llm, prompt_template
+from mirascope import llm
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import Any, Literal, Optional
@@ -123,12 +123,13 @@ async def execute_python_code(code: str, timeout: int = 30, allowed_imports: lis
 
 # Step 1: Generate code for the task
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=GeneratedCode,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=GeneratedCode,
 )
-@prompt_template(
-    """
+async def generate_code(task: str, requirements: str = "None specified", constraints: str = "None specified") -> str:
+    """Generate Python code for a given task."""
+    return f"""
     You are an expert Python programmer. Generate clean, efficient, and well-documented code for the following task.
 
     Task: {task}
@@ -146,20 +147,17 @@ async def execute_python_code(code: str, timeout: int = 30, allowed_imports: lis
 
     Generate complete, runnable code that accomplishes the task.
     """
-)
-async def generate_code(task: str, requirements: str = "None specified", constraints: str = "None specified") -> GeneratedCode:
-    """Generate Python code for a given task."""
-    ...
 
 
 # Step 2: Analyze code for safety and complexity
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=CodeAnalysis,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=CodeAnalysis,
 )
-@prompt_template(
-    """
+async def analyze_code_safety(code: str) -> str:
+    """Analyze code for safety and complexity."""
+    return f"""
     You are a code security and quality analyst. Analyze the following Python code for safety and complexity.
 
     Code to analyze:
@@ -176,19 +174,16 @@ async def generate_code(task: str, requirements: str = "None specified", constra
 
     Be thorough in identifying any risks or concerns.
     """
-)
-async def analyze_code_safety(code: str) -> CodeAnalysis:
-    """Analyze code for safety and complexity."""
-    ...
 
 
 # Step 3: Generate recommendations
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
 )
-@prompt_template(
-    """
+async def generate_recommendations(task: str, analysis: str, execution_result: str) -> str:
+    """Generate recommendations for code improvement."""
+    return f"""
     Based on the code analysis and execution results, provide recommendations for improvement.
 
     Original task: {task}
@@ -204,10 +199,6 @@ async def analyze_code_safety(code: str) -> CodeAnalysis:
 
     Return a list of recommendation strings.
     """
-)
-async def generate_recommendations(task: str, analysis: str, execution_result: str) -> list[str]:
-    """Generate recommendations for code improvement."""
-    ...
 
 
 @trace()

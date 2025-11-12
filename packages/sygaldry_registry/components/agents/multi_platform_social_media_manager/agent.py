@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime, timedelta
 from enum import Enum
-from mirascope import BaseDynamicConfig, llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Any, Optional
 
@@ -171,12 +171,20 @@ class SocialMediaCampaign(BaseModel):
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=TrendAnalysis,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=TrendAnalysis,
 )
-@prompt_template(
-    """
+def analyze_current_trends(
+    campaign_goal: str,
+    target_audience: str,
+    industry: str,
+    platforms: list[str],
+    time_period: str = "next 30 days",
+    brand_values: str = "",
+) -> str:
+    """Analyze current social media trends relevant to the campaign."""
+    return f"""
     SYSTEM:
     You are an expert social media trend analyst with deep knowledge of viral content,
     platform algorithms, and audience behavior patterns. Your role is to identify
@@ -211,26 +219,25 @@ class SocialMediaCampaign(BaseModel):
 
     Provide comprehensive trend analysis with actionable opportunities.
     """
-)
-def analyze_current_trends(
-    campaign_goal: str,
-    target_audience: str,
-    industry: str,
-    platforms: list[str],
-    time_period: str = "next 30 days",
-    brand_values: str = "",
-) -> TrendAnalysis:
-    """Analyze current social media trends relevant to the campaign."""
-    pass
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=list[PlatformStrategy],
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=list[PlatformStrategy],
 )
-@prompt_template(
-    """
+def develop_platform_strategies(
+    campaign_goal: str,
+    target_audience: str,
+    brand_voice: str,
+    platforms: list[str],
+    budget: str = "",
+    timeline: str = "",
+    trend_analysis: TrendAnalysis = None,
+    competitive_landscape: str = "",
+) -> str:
+    """Develop enhanced platform-specific social media strategies."""
+    return f"""
     SYSTEM:
     You are an expert social media strategist with deep knowledge of all major platforms.
     Your role is to create platform-specific strategies that maximize engagement and reach
@@ -271,32 +278,24 @@ def analyze_current_trends(
 
     Develop comprehensive strategies for each platform with specific tactics and recommendations.
     """
-)
-def develop_platform_strategies(
-    campaign_goal: str,
-    target_audience: str,
-    brand_voice: str,
-    platforms: list[str],
-    budget: str = "",
-    timeline: str = "",
-    trend_analysis: TrendAnalysis = None,
-    competitive_landscape: str = "",
-) -> BaseDynamicConfig:
-    """Develop enhanced platform-specific social media strategies."""
-    return {
-        "computed_fields": {
-            "trend_analysis": trend_analysis,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=EngagementAnalysis,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=EngagementAnalysis,
 )
-@prompt_template(
-    """
+def predict_content_engagement(
+    platform: str,
+    content_type: str,
+    content: str,
+    target_audience: str,
+    posting_time: str,
+    current_trends: str = "",
+    historical_performance: str = "",
+) -> str:
+    """Predict engagement metrics for social media content."""
+    return f"""
     SYSTEM:
     You are an expert in social media analytics and engagement prediction.
     Your role is to analyze content and predict its engagement performance
@@ -333,27 +332,24 @@ def develop_platform_strategies(
 
     Provide detailed engagement predictions with improvement suggestions.
     """
-)
-def predict_content_engagement(
-    platform: str,
-    content_type: str,
-    content: str,
-    target_audience: str,
-    posting_time: str,
-    current_trends: str = "",
-    historical_performance: str = "",
-) -> EngagementAnalysis:
-    """Predict engagement metrics for social media content."""
-    pass
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=ContentOptimization,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=ContentOptimization,
 )
-@prompt_template(
-    """
+def optimize_content_for_platforms(
+    original_message: str,
+    target_platforms: list[str],
+    campaign_context: str = "",
+    brand_guidelines: str = "",
+    target_audience: str = "",
+    trend_analysis: TrendAnalysis = None,
+    performance_goals: str = "",
+) -> str:
+    """Optimize content for multiple social media platforms with engagement predictions."""
+    return f"""
     SYSTEM:
     You are an expert content optimization specialist with deep knowledge of
     platform-specific best practices, viral content patterns, and audience psychology.
@@ -410,34 +406,25 @@ def predict_content_engagement(
 
     Create platform-optimized versions with engagement predictions and testing suggestions.
     """
-)
-def optimize_content_for_platforms(
-    original_message: str,
-    target_platforms: list[str],
-    campaign_context: str = "",
-    brand_guidelines: str = "",
-    target_audience: str = "",
-    trend_analysis: TrendAnalysis = None,
-    performance_goals: str = "",
-) -> BaseDynamicConfig:
-    """Optimize content for multiple social media platforms with engagement predictions."""
-    # For each platform, predict engagement
-    platform_contents: list[PlatformContent] = []
-
-    return {
-        "computed_fields": {
-            "trend_analysis": trend_analysis,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=ContentCalendar,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=ContentCalendar,
 )
-@prompt_template(
-    """
+def create_content_calendar(
+    campaign_duration: str,
+    platform_strategies: list[PlatformStrategy],
+    content_themes: list[str],
+    key_events: str = "",
+    posting_frequency: str = "",
+    resource_constraints: str = "",
+    trend_windows: str = "",
+    performance_targets: str = "",
+) -> str:
+    """Create an enhanced social media content calendar with flexibility for trends."""
+    return f"""
     SYSTEM:
     You are an expert social media calendar strategist specializing in
     multi-platform campaign orchestration. Your role is to create comprehensive
@@ -480,32 +467,25 @@ def optimize_content_for_platforms(
 
     Develop a detailed calendar with daily content recommendations, timing, and contingencies.
     """
-)
-def create_content_calendar(
-    campaign_duration: str,
-    platform_strategies: list[PlatformStrategy],
-    content_themes: list[str],
-    key_events: str = "",
-    posting_frequency: str = "",
-    resource_constraints: str = "",
-    trend_windows: str = "",
-    performance_targets: str = "",
-) -> BaseDynamicConfig:
-    """Create an enhanced social media content calendar with flexibility for trends."""
-    return {
-        "computed_fields": {
-            "platform_strategies": platform_strategies,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=SocialMediaCampaign,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=SocialMediaCampaign,
 )
-@prompt_template(
-    """
+def synthesize_social_media_campaign(
+    campaign_objective: str,
+    trend_analysis: TrendAnalysis,
+    platform_strategies: list[PlatformStrategy],
+    content_optimization: ContentOptimization,
+    content_calendar: ContentCalendar,
+    budget: str = "",
+    success_criteria: str = "",
+    risk_factors: str = "",
+) -> str:
+    """Synthesize complete social media campaign with enhanced features."""
+    return f"""
     SYSTEM:
     You are an expert social media campaign director with expertise in
     multi-platform orchestration, trend leveraging, and performance optimization.
@@ -551,26 +531,6 @@ def create_content_calendar(
 
     Create a comprehensive campaign plan with execution details, success metrics, and contingencies.
     """
-)
-def synthesize_social_media_campaign(
-    campaign_objective: str,
-    trend_analysis: TrendAnalysis,
-    platform_strategies: list[PlatformStrategy],
-    content_optimization: ContentOptimization,
-    content_calendar: ContentCalendar,
-    budget: str = "",
-    success_criteria: str = "",
-    risk_factors: str = "",
-) -> BaseDynamicConfig:
-    """Synthesize complete social media campaign with enhanced features."""
-    return {
-        "computed_fields": {
-            "trend_analysis": trend_analysis,
-            "platform_strategies": platform_strategies,
-            "content_optimization": content_optimization,
-            "content_calendar": content_calendar,
-        }
-    }
 
 
 async def multi_platform_social_media_manager(

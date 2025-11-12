@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from lilypad import trace
-from mirascope import llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Any, Literal, Optional
 
@@ -82,90 +82,80 @@ async def detect_pii_regex(text: str) -> list[PIIEntity]:
 
 # Step 1: Detect PII using LLM
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=PIIDetectionResponse,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=PIIDetectionResponse,
 )
-@prompt_template(
-    """
-    You are a privacy expert specializing in detecting Personally Identifiable Information (PII).
-
-    Analyze the following text and identify ALL instances of PII:
-
-    Text to analyze:
-    "{text}"
-
-    Look for these types of PII:
-    1. Names (first, last, full names)
-    2. Email addresses
-    3. Phone numbers (various formats)
-    4. Social Security Numbers (SSN)
-    5. Credit card numbers
-    6. Physical addresses
-    7. Date of birth
-    8. Driver's license numbers
-    9. Passport numbers
-    10. Bank account numbers
-    11. Medical record numbers
-    12. IP addresses
-    13. Vehicle identification numbers (VIN)
-    14. Biometric data references
-    15. Any other identifying information
-
-    For each PII instance found:
-    - Identify the exact text
-    - Classify its type
-    - Determine confidence level (0.0-1.0)
-    - Suggest an appropriate replacement
-    - Note its position in the text
-
-    Assess the overall risk level based on:
-    - Quantity of PII found
-    - Sensitivity of PII types
-    - Potential for identity theft or privacy breach
-    """
-)
-async def detect_pii_llm(text: str):
+async def detect_pii_llm(text: str) -> str:
     """Detect PII using LLM analysis."""
-    pass
+    return f"""You are a privacy expert specializing in detecting Personally Identifiable Information (PII).
+
+Analyze the following text and identify ALL instances of PII:
+
+Text to analyze:
+"{text}"
+
+Look for these types of PII:
+1. Names (first, last, full names)
+2. Email addresses
+3. Phone numbers (various formats)
+4. Social Security Numbers (SSN)
+5. Credit card numbers
+6. Physical addresses
+7. Date of birth
+8. Driver's license numbers
+9. Passport numbers
+10. Bank account numbers
+11. Medical record numbers
+12. IP addresses
+13. Vehicle identification numbers (VIN)
+14. Biometric data references
+15. Any other identifying information
+
+For each PII instance found:
+- Identify the exact text
+- Classify its type
+- Determine confidence level (0.0-1.0)
+- Suggest an appropriate replacement
+- Note its position in the text
+
+Assess the overall risk level based on:
+- Quantity of PII found
+- Sensitivity of PII types
+- Potential for identity theft or privacy breach"""
 
 
 # Step 2: Scrub PII from text
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=ScrubbedTextResponse,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=ScrubbedTextResponse,
 )
-@prompt_template(
-    """
-    You are a privacy expert tasked with removing PII from text.
-
-    Original text:
-    "{text}"
-
-    Detected PII entities:
-    {entities}
-
-    Scrubbing method: {method}
-    Options:
-    - "mask": Replace with generic placeholders (e.g., [EMAIL], [PHONE])
-    - "redact": Replace with asterisks or similar characters
-    - "generalize": Replace with less specific information
-    - "synthetic": Replace with realistic but fake data
-
-    Requirements:
-    1. Remove or mask ALL identified PII
-    2. Maintain text readability and structure
-    3. Preserve non-PII content exactly
-    4. Keep the context meaningful where possible
-    5. If using synthetic data, make it realistic but clearly not real
-
-    Return the scrubbed text along with details about what was removed.
-    """
-)
-async def scrub_pii(text: str, entities: str, method: str):
+async def scrub_pii(text: str, entities: str, method: str) -> str:
     """Scrub PII from text using specified method."""
-    pass
+    return f"""You are a privacy expert tasked with removing PII from text.
+
+Original text:
+"{text}"
+
+Detected PII entities:
+{entities}
+
+Scrubbing method: {method}
+Options:
+- "mask": Replace with generic placeholders (e.g., [EMAIL], [PHONE])
+- "redact": Replace with asterisks or similar characters
+- "generalize": Replace with less specific information
+- "synthetic": Replace with realistic but fake data
+
+Requirements:
+1. Remove or mask ALL identified PII
+2. Maintain text readability and structure
+3. Preserve non-PII content exactly
+4. Keep the context meaningful where possible
+5. If using synthetic data, make it realistic but clearly not real
+
+Return the scrubbed text along with details about what was removed."""
 
 
 # Main PII scrubbing function

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from mirascope import llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Any, Literal, Optional
 
@@ -98,12 +98,13 @@ class DatasetBuilderResponse(BaseModel):
 
 # Step 1: Analyze requirements and create plan
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=DatasetPlan,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=DatasetPlan,
 )
-@prompt_template(
-    """
+async def create_dataset_plan(requirements: str) -> str:
+    """Create a plan for building the dataset."""
+    return f"""
     You are a data architect specializing in building curated datasets using Exa Websets.
 
     Requirements:
@@ -136,20 +137,17 @@ class DatasetBuilderResponse(BaseModel):
 
     Ensure the plan is optimized for the specific dataset requirements.
     """
-)
-async def create_dataset_plan(requirements: str):
-    """Create a plan for building the dataset."""
-    pass
 
 
 # Step 2: Execute the plan and create webset
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
     tools=[create_webset, get_webset] if WEBSETS_AVAILABLE else [],
 )
-@prompt_template(
-    """
+async def execute_dataset_plan(plan: str) -> str:
+    """Execute the plan and create the webset."""
+    return f"""
     You are executing a dataset building plan using Exa Websets.
 
     Plan details:
@@ -170,21 +168,18 @@ async def create_dataset_plan(requirements: str):
 
     The webset will run asynchronously, collecting and enriching data based on the configuration.
     """
-)
-async def execute_dataset_plan(plan: str):
-    """Execute the plan and create the webset."""
-    pass
 
 
 # Step 3: Monitor progress
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=DatasetStatus,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=DatasetStatus,
     tools=[get_webset, list_webset_items] if WEBSETS_AVAILABLE else [],
 )
-@prompt_template(
-    """
+async def monitor_dataset_progress(webset_id: str) -> str:
+    """Monitor the progress of dataset building."""
+    return f"""
     Monitor the progress of a dataset being built.
 
     Webset ID: {webset_id}
@@ -201,21 +196,18 @@ async def execute_dataset_plan(plan: str):
     - Progress percentage
     - Estimated completion time if still running
     """
-)
-async def monitor_dataset_progress(webset_id: str):
-    """Monitor the progress of dataset building."""
-    pass
 
 
 # Step 4: Analyze the dataset
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=DatasetAnalysis,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=DatasetAnalysis,
     tools=[list_webset_items, export_webset] if WEBSETS_AVAILABLE else [],
 )
-@prompt_template(
-    """
+async def analyze_dataset(webset_id: str, name: str) -> str:
+    """Analyze the completed dataset."""
+    return f"""
     Analyze the completed dataset.
 
     Webset ID: {webset_id}
@@ -240,10 +232,6 @@ async def monitor_dataset_progress(webset_id: str):
 
     Return a comprehensive analysis.
     """
-)
-async def analyze_dataset(webset_id: str, name: str):
-    """Analyze the completed dataset."""
-    pass
 
 
 async def build_dataset(

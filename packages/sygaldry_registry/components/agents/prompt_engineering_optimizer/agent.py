@@ -5,7 +5,7 @@ import json
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from enum import Enum
-from mirascope import BaseDynamicConfig, llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Any, Optional
 
@@ -136,12 +136,15 @@ class OptimizationResult(BaseModel):
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=PromptAnalysis,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=PromptAnalysis,
 )
-@prompt_template(
-    """
+def analyze_prompt_effectiveness(
+    prompt: str, task_context: str = "", target_audience: str = "", success_criteria: str = ""
+) -> str:
+    """Analyze a prompt for effectiveness and identify issues."""
+    return f"""
     SYSTEM:
     You are an expert prompt engineer and AI researcher with deep knowledge of
     prompt engineering best practices, cognitive science, and language model behavior.
@@ -183,21 +186,18 @@ class OptimizationResult(BaseModel):
 
     Provide a comprehensive analysis with specific scores and actionable insights.
     """
-)
-def analyze_prompt_effectiveness(
-    prompt: str, task_context: str = "", target_audience: str = "", success_criteria: str = ""
-) -> PromptAnalysis:
-    """Analyze a prompt for effectiveness and identify issues."""
-    ...
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=list[PromptVariant],
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=list[PromptVariant],
 )
-@prompt_template(
-    """
+def generate_prompt_variants(
+    original_prompt: str, analysis_results: PromptAnalysis, priority_issues: list[str], optimization_goals: str = ""
+) -> str:
+    """Generate optimized prompt variants."""
+    return f"""
     SYSTEM:
     You are an expert prompt optimization specialist with extensive experience
     in creating high-performance prompts for various AI applications.
@@ -238,25 +238,22 @@ def analyze_prompt_effectiveness(
     Generate 4-6 distinct variants, each targeting different aspects of improvement.
     Ensure variants are sufficiently different for meaningful A/B testing.
     """
-)
-def generate_prompt_variants(
-    original_prompt: str, analysis_results: PromptAnalysis, priority_issues: list[str], optimization_goals: str = ""
-) -> BaseDynamicConfig:
-    """Generate optimized prompt variants."""
-    return {
-        "computed_fields": {
-            "analysis_results": analysis_results,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=TestResult,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=TestResult,
 )
-@prompt_template(
-    """
+def test_prompt_variant(
+    variant: PromptVariant,
+    test_input: str,
+    expected_output_type: str = "",
+    evaluation_context: str = "",
+    success_criteria: str = "",
+) -> str:
+    """Test a prompt variant and evaluate its performance."""
+    return f"""
     SYSTEM:
     You are an expert prompt evaluation specialist with deep understanding
     of language model behavior and output quality assessment.
@@ -294,29 +291,22 @@ def generate_prompt_variants(
 
     Simulate execution and provide detailed evaluation results.
     """
-)
-def test_prompt_variant(
-    variant: PromptVariant,
-    test_input: str,
-    expected_output_type: str = "",
-    evaluation_context: str = "",
-    success_criteria: str = "",
-) -> BaseDynamicConfig:
-    """Test a prompt variant and evaluate its performance."""
-    return {
-        "computed_fields": {
-            "variant": variant,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=ABTestResult,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=ABTestResult,
 )
-@prompt_template(
-    """
+def compare_variants_ab_test(
+    variant_a: PromptVariant,
+    test_results_a: list[TestResult],
+    variant_b: PromptVariant,
+    test_results_b: list[TestResult],
+    evaluation_context: str = "",
+) -> str:
+    """Perform A/B testing comparison between two variants."""
+    return f"""
     SYSTEM:
     You are an expert in A/B testing and statistical analysis for prompt optimization.
     Your role is to compare prompt variants and determine which performs better.
@@ -348,25 +338,22 @@ def test_prompt_variant(
 
     Determine the winner with statistical confidence and provide recommendations.
     """
-)
-def compare_variants_ab_test(
-    variant_a: PromptVariant,
-    test_results_a: list[TestResult],
-    variant_b: PromptVariant,
-    test_results_b: list[TestResult],
-    evaluation_context: str = "",
-) -> ABTestResult:
-    """Perform A/B testing comparison between two variants."""
-    pass
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=OptimizationResult,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=OptimizationResult,
 )
-@prompt_template(
-    """
+def synthesize_optimization_results(
+    original_prompt: str,
+    optimization_analysis: PromptOptimization,
+    test_results: list[TestResult],
+    ab_test_results: list[ABTestResult],
+    performance_goals: str = "",
+) -> str:
+    """Synthesize optimization results into final recommendations."""
+    return f"""
     SYSTEM:
     You are an expert prompt optimization consultant specializing in
     delivering production-ready prompts with comprehensive documentation.
@@ -399,22 +386,6 @@ def compare_variants_ab_test(
 
     Provide the final optimized prompt with comprehensive recommendations.
     """
-)
-def synthesize_optimization_results(
-    original_prompt: str,
-    optimization_analysis: PromptOptimization,
-    test_results: list[TestResult],
-    ab_test_results: list[ABTestResult],
-    performance_goals: str = "",
-) -> BaseDynamicConfig:
-    """Synthesize optimization results into final recommendations."""
-    return {
-        "computed_fields": {
-            "optimization_analysis": optimization_analysis,
-            "test_results": test_results,
-            "ab_test_results": ab_test_results,
-        }
-    }
 
 
 async def run_variant_tests(

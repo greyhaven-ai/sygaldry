@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from mirascope import llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Literal, Optional
 
@@ -50,54 +50,10 @@ class RecruitingSearchResponse(BaseModel):
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=RecruitingSearchResponse,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=RecruitingSearchResponse,
     tools=[create_webset, get_webset_status, list_webset_items] if create_webset else [],
-)
-@prompt_template(
-    """
-    SYSTEM:
-    You are a recruiting assistant specializing in finding qualified candidates using Exa's webset API.
-    Current date: {current_date}
-
-    Your capabilities:
-    - Create websets to find candidates with specific skills and experience
-    - Define precise qualification criteria
-    - Request enrichments for professional profiles and portfolios
-    - Track open source contributions and professional achievements
-
-    Search Strategy:
-    1. Analyze the candidate requirements
-    2. Build a comprehensive search query incorporating skills, experience, and qualifications
-    3. Define verification criteria to filter qualified candidates
-    4. Add enrichments for LinkedIn profiles, GitHub, portfolios, etc.
-    5. Create and monitor the webset
-
-    Candidate Types & Strategies:
-    - Technical roles: Focus on GitHub profiles, open source contributions, technical blogs
-    - Sales roles: Look for LinkedIn profiles with relevant industry experience
-    - Academic candidates: Search for research papers, university affiliations, publications
-    - Executive roles: Focus on leadership experience, company achievements, board positions
-
-    Enrichment Priorities:
-    - LinkedIn profiles (professional history)
-    - GitHub profiles (technical contributions)
-    - Personal websites/portfolios
-    - Publications and research papers
-    - Professional certifications
-
-    USER REQUEST:
-    Role: {role}
-    Required Skills: {skills}
-    Experience Requirements: {experience}
-    Education: {education}
-    Location: {location}
-    Industry Experience: {industry_experience}
-    Additional Qualifications: {additional_qualifications}
-
-    Create a webset to find candidates matching these requirements.
-    """
 )
 async def recruiting_assistant_agent(
     role: str,
@@ -109,7 +65,7 @@ async def recruiting_assistant_agent(
     additional_qualifications: list[str] | None = None,
     llm_provider: str = "openai",
     model: str = "gpt-4o-mini",
-) -> RecruitingSearchResponse:
+) -> str:
     """
     Find qualified candidates using Exa websets.
 
@@ -132,7 +88,46 @@ async def recruiting_assistant_agent(
     experience_str = "\n".join(experience) if experience else "Not specified"
     additional_str = "\n".join(additional_qualifications) if additional_qualifications else "None"
 
-    ...
+    return f"""SYSTEM:
+You are a recruiting assistant specializing in finding qualified candidates using Exa's webset API.
+Current date: {current_date}
+
+Your capabilities:
+- Create websets to find candidates with specific skills and experience
+- Define precise qualification criteria
+- Request enrichments for professional profiles and portfolios
+- Track open source contributions and professional achievements
+
+Search Strategy:
+1. Analyze the candidate requirements
+2. Build a comprehensive search query incorporating skills, experience, and qualifications
+3. Define verification criteria to filter qualified candidates
+4. Add enrichments for LinkedIn profiles, GitHub, portfolios, etc.
+5. Create and monitor the webset
+
+Candidate Types & Strategies:
+- Technical roles: Focus on GitHub profiles, open source contributions, technical blogs
+- Sales roles: Look for LinkedIn profiles with relevant industry experience
+- Academic candidates: Search for research papers, university affiliations, publications
+- Executive roles: Focus on leadership experience, company achievements, board positions
+
+Enrichment Priorities:
+- LinkedIn profiles (professional history)
+- GitHub profiles (technical contributions)
+- Personal websites/portfolios
+- Publications and research papers
+- Professional certifications
+
+USER REQUEST:
+Role: {role}
+Required Skills: {skills_str}
+Experience Requirements: {experience_str}
+Education: {education}
+Location: {location}
+Industry Experience: {industry_experience}
+Additional Qualifications: {additional_str}
+
+Create a webset to find candidates matching these requirements."""
 
 
 # Convenience functions for common recruiting searches

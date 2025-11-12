@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from datetime import datetime
-from mirascope import BaseDynamicConfig, llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Any, Literal, Optional
 
@@ -176,72 +176,26 @@ def determine_search_strategy(question: str, search_provider: SearchProvider) ->
     return "duckduckgo"
 
 
-# Single unified web search agent using dynamic configuration
+# Build all available tools at module level
+_ALL_AVAILABLE_TOOLS = []
+if DUCKDUCKGO_AVAILABLE:
+    _ALL_AVAILABLE_TOOLS.append(duckduckgo_search)
+if QWANT_AVAILABLE:
+    _ALL_AVAILABLE_TOOLS.append(qwant_search)
+if EXA_AVAILABLE:
+    _ALL_AVAILABLE_TOOLS.extend([exa_search, exa_answer, exa_find_similar])
+if NIMBLE_AVAILABLE:
+    _ALL_AVAILABLE_TOOLS.extend([nimble_search, nimble_serp_search, nimble_maps_search])
+if URL_PARSER_AVAILABLE:
+    _ALL_AVAILABLE_TOOLS.append(parse_url_content)
+
+
+# Single unified web search agent
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=WebSearchResponse,
-)
-@prompt_template(
-    """
-    SYSTEM:
-    You are an expert web search agent with access to multiple search providers.
-    Current date: {current_date}
-    Search history: {search_history}
-
-    Available search tools:
-    - `duckduckgo_search`: DuckDuckGo search (general purpose, wide coverage)
-    - `qwant_search`: Qwant search (privacy-focused, no user tracking)
-    - `exa_search`: Exa AI-powered search (neural/semantic, advanced filtering, relevance scoring)
-    - `exa_answer`: Get direct answers with citations (combines search + LLM)
-    - `exa_find_similar`: Find pages similar to a given URL
-    - `nimble_search`: Nimble Web API for comprehensive web data extraction
-    - `nimble_serp_search`: Nimble SERP API for structured search engine results
-    - `nimble_maps_search`: Nimble Maps API for location-based searches
-    - `parse_url_content`: Extract content from specific URLs
-
-    Search strategy: {search_strategy}
-    Locale: {locale}
-    Privacy mode: {privacy_mode}
-
-    Instructions:
-    1. Based on the search strategy, select appropriate search tools
-    2. Generate diverse search queries to explore different aspects of the question
-    3. Use the selected search tools to find relevant information
-    4. Extract content from the most promising URLs
-    5. Synthesize a comprehensive answer with proper source attribution
-    6. Include information about which providers were used
-    7. If using privacy-focused search, mention the privacy benefits
-
-    Search Strategy Guidelines:
-    - "duckduckgo": Use only DuckDuckGo for broad, comprehensive coverage
-    - "qwant": Use only Qwant for privacy-focused searching
-    - "exa": Use Exa for AI-powered search with neural understanding and direct answers
-    - "nimble": Use Nimble APIs for structured data extraction and specialized searches
-    - "auto": Automatically select the best provider based on query type
-    - "all": Use multiple providers for maximum coverage and validation
-
-    Exa-specific capabilities and categories:
-    - Best for: company info, research papers, news, LinkedIn profiles, GitHub repos, tweets, movies, songs, personal sites, PDFs, financial reports
-    - Use `exa_answer` for direct Q&A with citations
-    - Use `exa_search` with appropriate category for targeted results
-    - Use `exa_find_similar` to find related content based on URLs
-
-    Nimble-specific capabilities:
-    - Use `nimble_serp_search` for structured search results with titles, snippets, and URLs
-    - Use `nimble_maps_search` for location-based queries (restaurants, businesses, places)
-    - Use `nimble_search` for general web data extraction with parsing
-
-    Return a structured response with:
-    - Complete answer addressing all aspects of the question
-    - List of source URLs referenced
-    - Search queries performed for transparency
-    - Search providers used
-    - Privacy note if privacy-focused search was used
-
-    USER: {question}
-    ASSISTANT:
-    """
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=WebSearchResponse,
+    tools=_ALL_AVAILABLE_TOOLS,
 )
 async def web_search_agent(
     question: str,
@@ -253,9 +207,9 @@ async def web_search_agent(
     llm_provider: str = "openai",
     model: str = "gpt-4o-mini",
     stream: bool = False,
-) -> BaseDynamicConfig:
+) -> str:
     """
-    Unified web search agent using dynamic configuration.
+    Unified web search agent.
 
     This agent provides a single interface for web searching while allowing
     users to choose their preferred search strategy, providers, and runtime configuration.
@@ -272,7 +226,7 @@ async def web_search_agent(
         stream: Whether to stream the response
 
     Returns:
-        Dynamic configuration for the web search agent
+        Web search response with answer and sources
     """
     current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     search_history_str = "\n".join(search_history) if search_history else "No previous searches"
@@ -283,40 +237,63 @@ async def web_search_agent(
     else:
         search_strategy = determine_search_strategy(question, search_provider)
 
-    # Build the list of available tools
-    available_tools = []
-    if DUCKDUCKGO_AVAILABLE:
-        available_tools.append(duckduckgo_search)
-    if QWANT_AVAILABLE:
-        available_tools.append(qwant_search)
-    if EXA_AVAILABLE:
-        available_tools.extend([exa_search, exa_answer, exa_find_similar])
-    if NIMBLE_AVAILABLE:
-        available_tools.extend([nimble_search, nimble_serp_search, nimble_maps_search])
-    if URL_PARSER_AVAILABLE:
-        available_tools.append(parse_url_content)
+    return f"""SYSTEM:
+You are an expert web search agent with access to multiple search providers.
+Current date: {current_date}
+Search history: {search_history_str}
 
-    # Return dynamic configuration
-    return {
-        "tools": available_tools,
-        "call_params": {
-            "stream": stream,
-        },
-        "computed_fields": {
-            "current_date": current_date,
-            "search_history": search_history_str,
-            "search_strategy": search_strategy,
-            "locale": locale,
-            "privacy_mode": privacy_mode,
-            "question": question,
-        },
-        "metadata": {
-            "search_provider": search_provider,
-            "max_results": max_results_per_search,
-            "llm_provider": llm_provider,
-            "model": model,
-        },
-    }
+Available search tools:
+- `duckduckgo_search`: DuckDuckGo search (general purpose, wide coverage)
+- `qwant_search`: Qwant search (privacy-focused, no user tracking)
+- `exa_search`: Exa AI-powered search (neural/semantic, advanced filtering, relevance scoring)
+- `exa_answer`: Get direct answers with citations (combines search + LLM)
+- `exa_find_similar`: Find pages similar to a given URL
+- `nimble_search`: Nimble Web API for comprehensive web data extraction
+- `nimble_serp_search`: Nimble SERP API for structured search engine results
+- `nimble_maps_search`: Nimble Maps API for location-based searches
+- `parse_url_content`: Extract content from specific URLs
+
+Search strategy: {search_strategy}
+Locale: {locale}
+Privacy mode: {privacy_mode}
+
+Instructions:
+1. Based on the search strategy, select appropriate search tools
+2. Generate diverse search queries to explore different aspects of the question
+3. Use the selected search tools to find relevant information
+4. Extract content from the most promising URLs
+5. Synthesize a comprehensive answer with proper source attribution
+6. Include information about which providers were used
+7. If using privacy-focused search, mention the privacy benefits
+
+Search Strategy Guidelines:
+- "duckduckgo": Use only DuckDuckGo for broad, comprehensive coverage
+- "qwant": Use only Qwant for privacy-focused searching
+- "exa": Use Exa for AI-powered search with neural understanding and direct answers
+- "nimble": Use Nimble APIs for structured data extraction and specialized searches
+- "auto": Automatically select the best provider based on query type
+- "all": Use multiple providers for maximum coverage and validation
+
+Exa-specific capabilities and categories:
+- Best for: company info, research papers, news, LinkedIn profiles, GitHub repos, tweets, movies, songs, personal sites, PDFs, financial reports
+- Use `exa_answer` for direct Q&A with citations
+- Use `exa_search` with appropriate category for targeted results
+- Use `exa_find_similar` to find related content based on URLs
+
+Nimble-specific capabilities:
+- Use `nimble_serp_search` for structured search results with titles, snippets, and URLs
+- Use `nimble_maps_search` for location-based queries (restaurants, businesses, places)
+- Use `nimble_search` for general web data extraction with parsing
+
+Return a structured response with:
+- Complete answer addressing all aspects of the question
+- List of source URLs referenced
+- Search queries performed for transparency
+- Search providers used
+- Privacy note if privacy-focused search was used
+
+USER: {question}
+ASSISTANT:"""
 
 
 # Convenience functions remain the same but now use the unified agent

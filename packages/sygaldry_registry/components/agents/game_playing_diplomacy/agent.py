@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from enum import Enum
-from mirascope import BaseDynamicConfig, llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Any, Optional
 
@@ -176,12 +176,22 @@ PERSONALITY_PROMPTS = {
 
 
 @llm.call(
-    provider="{provider}",
-    model="{model}",
-    response_model=StrategicAnalysis,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=StrategicAnalysis,
 )
-@prompt_template(
-    """
+def analyze_strategic_situation(
+    power: DiplomacyPower,
+    game_state: DiplomacyState,
+    recent_messages: list[DiplomacyMessage],
+    active_agreements: list[NegotiationProposal],
+    historical_context: str = "",
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o",
+) -> str:
+    """Analyze the strategic situation for a power."""
+    return f"""
     SYSTEM:
     You are an expert Diplomacy player analyzing the current game state.
     {personality_prompt}
@@ -214,34 +224,26 @@ PERSONALITY_PROMPTS = {
 
     Provide comprehensive strategic analysis with power rankings, threats, and opportunities.
     """
-)
-def analyze_strategic_situation(
-    power: DiplomacyPower,
-    game_state: DiplomacyState,
-    recent_messages: list[DiplomacyMessage],
-    active_agreements: list[NegotiationProposal],
-    historical_context: str = "",
-    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
-    provider: str = "openai",
-    model: str = "gpt-4o",
-) -> BaseDynamicConfig:
-    """Analyze the strategic situation for a power."""
-    return {
-        "computed_fields": {
-            "game_state": game_state,
-            "recent_messages": recent_messages,
-            "active_agreements": active_agreements,
-        }
-    }
 
 
 @llm.call(
-    provider="{provider}",
-    model="{model}",
-    response_model=list[NegotiationProposal],
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=list[NegotiationProposal],
 )
-@prompt_template(
-    """
+def develop_negotiation_strategy(
+    power: DiplomacyPower,
+    strategic_analysis: StrategicAnalysis,
+    current_relationships: str,
+    power_positions: str,
+    immediate_threats: str,
+    expansion_opportunities: str,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o",
+) -> str:
+    """Develop negotiation proposals for diplomatic phase."""
+    return f"""
     SYSTEM:
     You are a master Diplomacy negotiator for {power}.
     {personality_prompt}
@@ -272,33 +274,26 @@ def analyze_strategic_situation(
 
     Create specific, actionable negotiation proposals that advance {power}'s interests.
     """
-)
-def develop_negotiation_strategy(
-    power: DiplomacyPower,
-    strategic_analysis: StrategicAnalysis,
-    current_relationships: str,
-    power_positions: str,
-    immediate_threats: str,
-    expansion_opportunities: str,
-    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
-    provider: str = "openai",
-    model: str = "gpt-4o",
-) -> BaseDynamicConfig:
-    """Develop negotiation proposals for diplomatic phase."""
-    return {
-        "computed_fields": {
-            "strategic_analysis": strategic_analysis,
-        }
-    }
 
 
 @llm.call(
-    provider="{provider}",
-    model="{model}",
-    response_model=list[DiplomacyMessage],
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=list[DiplomacyMessage],
 )
-@prompt_template(
-    """
+def craft_diplomatic_messages(
+    power: DiplomacyPower,
+    proposals: list[NegotiationProposal],
+    target_powers: list[DiplomacyPower],
+    current_phase: DiplomacyPhase,
+    relationship_status: str,
+    strategic_goals: str,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o",
+) -> str:
+    """Craft diplomatic messages to other powers."""
+    return f"""
     SYSTEM:
     You are crafting diplomatic messages for {power} in Diplomacy.
     {personality_prompt}
@@ -329,33 +324,26 @@ def develop_negotiation_strategy(
 
     Craft persuasive messages that advance {power}'s diplomatic agenda.
     """
-)
-def craft_diplomatic_messages(
-    power: DiplomacyPower,
-    proposals: list[NegotiationProposal],
-    target_powers: list[DiplomacyPower],
-    current_phase: DiplomacyPhase,
-    relationship_status: str,
-    strategic_goals: str,
-    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
-    provider: str = "openai",
-    model: str = "gpt-4o",
-) -> BaseDynamicConfig:
-    """Craft diplomatic messages to other powers."""
-    return {
-        "computed_fields": {
-            "proposals": proposals,
-        }
-    }
 
 
 @llm.call(
-    provider="{provider}",
-    model="{model}",
-    response_model=list[DiplomacyOrder],
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=list[DiplomacyOrder],
 )
-@prompt_template(
-    """
+def plan_military_orders(
+    power: DiplomacyPower,
+    current_units: list[DiplomacyUnit],
+    strategic_analysis: StrategicAnalysis,
+    agreements: list[NegotiationProposal],
+    expected_moves: str,
+    priority_targets: str,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o",
+) -> str:
+    """Plan military orders for the current phase."""
+    return f"""
     SYSTEM:
     You are planning military orders for {power} in Diplomacy.
     {personality_prompt}
@@ -391,35 +379,26 @@ def craft_diplomatic_messages(
 
     Provide specific orders for each unit with clear strategic purpose.
     """
-)
-def plan_military_orders(
-    power: DiplomacyPower,
-    current_units: list[DiplomacyUnit],
-    strategic_analysis: StrategicAnalysis,
-    agreements: list[NegotiationProposal],
-    expected_moves: str,
-    priority_targets: str,
-    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
-    provider: str = "openai",
-    model: str = "gpt-4o",
-) -> BaseDynamicConfig:
-    """Plan military orders for the current phase."""
-    return {
-        "computed_fields": {
-            "current_units": current_units,
-            "strategic_analysis": strategic_analysis,
-            "agreements": agreements,
-        }
-    }
 
 
 @llm.call(
-    provider="{provider}",
-    model="{model}",
-    response_model=DiplomacyMove,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=DiplomacyMove,
 )
-@prompt_template(
-    """
+def synthesize_complete_move(
+    power: DiplomacyPower,
+    military_orders: list[DiplomacyOrder],
+    diplomatic_messages: list[DiplomacyMessage],
+    strategic_analysis: StrategicAnalysis,
+    current_phase: DiplomacyPhase,
+    key_objectives: str,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o",
+) -> str:
+    """Synthesize complete move including orders and diplomacy."""
+    return f"""
     SYSTEM:
     You are synthesizing the complete move for {power} in Diplomacy.
     {personality_prompt}
@@ -442,26 +421,6 @@ def plan_military_orders(
 
     Create a cohesive move that integrates military and diplomatic actions with clear reasoning.
     """
-)
-def synthesize_complete_move(
-    power: DiplomacyPower,
-    military_orders: list[DiplomacyOrder],
-    diplomatic_messages: list[DiplomacyMessage],
-    strategic_analysis: StrategicAnalysis,
-    current_phase: DiplomacyPhase,
-    key_objectives: str,
-    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
-    provider: str = "openai",
-    model: str = "gpt-4o",
-) -> BaseDynamicConfig:
-    """Synthesize complete move including orders and diplomacy."""
-    return {
-        "computed_fields": {
-            "military_orders": military_orders,
-            "diplomatic_messages": diplomatic_messages,
-            "strategic_analysis": strategic_analysis,
-        }
-    }
 
 
 async def process_human_input(game: DiplomacyGame, human_power: DiplomacyPower, phase: DiplomacyPhase) -> DiplomacyMove:

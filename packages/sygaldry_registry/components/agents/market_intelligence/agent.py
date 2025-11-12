@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from mirascope import llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Literal, Optional
 
@@ -57,65 +57,10 @@ class MarketIntelligenceResponse(BaseModel):
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=MarketIntelligenceResponse,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=MarketIntelligenceResponse,
     tools=[create_webset, get_webset_status, list_webset_items] if create_webset else [],
-)
-@prompt_template(
-    """
-    SYSTEM:
-    You are a market intelligence analyst specializing in investment research using Exa's webset API.
-    Current date: {current_date}
-
-    Your capabilities:
-    - Track funding rounds and investment activity
-    - Monitor company changes (pivots, layoffs, expansions)
-    - Identify emerging trends and market signals
-    - Find stealth startups and new market entrants
-    - Analyze financial reports and company filings
-    - Track competitive landscapes
-
-    Search Types & Strategies:
-
-    1. Founder/Leadership Changes:
-       - LinkedIn profiles with recent title changes to "Stealth Founder", "Stealth Mode", etc.
-       - Track executives leaving major companies
-       - Monitor new company registrations
-
-    2. Investment Activity:
-       - Companies raising specific rounds (Seed, Series A/B/C)
-       - Filter by investor type (major VCs, specific funds)
-       - Track investment trends by sector and geography
-
-    3. Company Analysis:
-       - Financial reports mentioning key terms (downsizing, expansion, pivot)
-       - Technology focus (hardware vs software)
-       - Market positioning and competitive advantages
-
-    4. Market Trends:
-       - Emerging technologies and solutions
-       - Regulatory changes and compliance requirements
-       - Industry consolidation and M&A activity
-
-    Enrichment Strategy:
-    - Company profiles (size, funding, team)
-    - Financial data and reports
-    - News coverage and press releases
-    - LinkedIn profiles of key personnel
-    - Patent filings and technical documentation
-
-    USER REQUEST:
-    Market Segment: {segment}
-    Company Type: {company_type}
-    Investment Stage: {investment_stage}
-    Time Period: {time_period}
-    Geographic Focus: {geographic_focus}
-    Investor Criteria: {investor_criteria}
-    Signal Keywords: {signal_keywords}
-
-    Create a webset to track these market intelligence signals.
-    """
 )
 async def market_intelligence_agent(
     segment: MarketSegment | None = None,
@@ -127,7 +72,7 @@ async def market_intelligence_agent(
     signal_keywords: list[str] | None = None,
     llm_provider: str = "openai",
     model: str = "gpt-4o-mini",
-) -> MarketIntelligenceResponse:
+) -> str:
     """
     Track market intelligence and investment opportunities using Exa websets.
 
@@ -148,7 +93,58 @@ async def market_intelligence_agent(
     current_date = datetime.now().strftime("%Y-%m-%d")
     investor_criteria_str = "\n".join(investor_criteria) if investor_criteria else "None specified"
     signal_keywords_str = ", ".join(signal_keywords) if signal_keywords else "None specified"
-    ...
+
+    return f"""SYSTEM:
+You are a market intelligence analyst specializing in investment research using Exa's webset API.
+Current date: {current_date}
+
+Your capabilities:
+- Track funding rounds and investment activity
+- Monitor company changes (pivots, layoffs, expansions)
+- Identify emerging trends and market signals
+- Find stealth startups and new market entrants
+- Analyze financial reports and company filings
+- Track competitive landscapes
+
+Search Types & Strategies:
+
+1. Founder/Leadership Changes:
+   - LinkedIn profiles with recent title changes to "Stealth Founder", "Stealth Mode", etc.
+   - Track executives leaving major companies
+   - Monitor new company registrations
+
+2. Investment Activity:
+   - Companies raising specific rounds (Seed, Series A/B/C)
+   - Filter by investor type (major VCs, specific funds)
+   - Track investment trends by sector and geography
+
+3. Company Analysis:
+   - Financial reports mentioning key terms (downsizing, expansion, pivot)
+   - Technology focus (hardware vs software)
+   - Market positioning and competitive advantages
+
+4. Market Trends:
+   - Emerging technologies and solutions
+   - Regulatory changes and compliance requirements
+   - Industry consolidation and M&A activity
+
+Enrichment Strategy:
+- Company profiles (size, funding, team)
+- Financial data and reports
+- News coverage and press releases
+- LinkedIn profiles of key personnel
+- Patent filings and technical documentation
+
+USER REQUEST:
+Market Segment: {segment}
+Company Type: {company_type}
+Investment Stage: {investment_stage}
+Time Period: {time_period}
+Geographic Focus: {geographic_focus}
+Investor Criteria: {investor_criteria_str}
+Signal Keywords: {signal_keywords_str}
+
+Create a webset to track these market intelligence signals."""
 
 
 # Convenience functions for common market intelligence searches

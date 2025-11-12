@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from mirascope import llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Any, Optional
 
@@ -57,12 +57,13 @@ class HallucinationDetectionResponse(BaseModel):
 
 # Step 1: Extract claims from text
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=ExtractedClaimsResponse,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=ExtractedClaimsResponse,
 )
-@prompt_template(
-    """
+async def extract_claims(text: str) -> str:
+    """Extract factual claims from the text using an LLM."""
+    return f"""
     You are an expert at extracting claims from text.
     Your task is to identify and list all claims present, true or false,
     in the given text. Each claim should be a single, verifiable statement.
@@ -73,21 +74,18 @@ class HallucinationDetectionResponse(BaseModel):
     Text to analyze:
     {text}
     """
-)
-async def extract_claims(text: str):
-    """Extract factual claims from the text using an LLM."""
-    pass
 
 
 # Step 2: Search for evidence and verify a single claim
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=ClaimVerification,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=ClaimVerification,
     tools=[exa_search, exa_answer] if EXA_AVAILABLE else [],
 )
-@prompt_template(
-    """
+async def verify_claim(claim: str) -> str:
+    """Verify a single claim using Exa search."""
+    return f"""
     You are an expert fact-checker. Your task is to verify the following claim
     by searching for evidence using Exa's AI-powered search.
 
@@ -115,20 +113,17 @@ async def extract_claims(text: str):
 
     6. Provide a brief summary of the evidence found
     """
-)
-async def verify_claim(claim: str):
-    """Verify a single claim using Exa search."""
-    pass
 
 
 # Step 3: Main hallucination detector
 @llm.call(
-    provider="openai",
-    model="gpt-4o-mini",
-    response_model=HallucinationDetectionResponse,
+    provider="openai:completions",
+    model_id="gpt-4o-mini",
+    format=HallucinationDetectionResponse,
 )
-@prompt_template(
-    """
+async def analyze_hallucinations(original_text: str, verification_results: str) -> str:
+    """Analyze the overall hallucination detection results."""
+    return f"""
     You are analyzing the results of a hallucination detection process.
 
     Original text analyzed:
@@ -154,10 +149,6 @@ async def verify_claim(claim: str):
 
     5. Provide a summary of the findings
     """
-)
-async def analyze_hallucinations(original_text: str, verification_results: str):
-    """Analyze the overall hallucination detection results."""
-    pass
 
 
 async def detect_hallucinations(

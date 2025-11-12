@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncGenerator
 from enum import Enum
-from mirascope import BaseDynamicConfig, llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -111,12 +111,13 @@ class GameAnalysis(BaseModel):
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=GameScenario,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=GameScenario,
 )
-@prompt_template(
-    """
+def structure_game_scenario(situation: str, context: str = "", stakeholders: str = "", objectives: str = "") -> str:
+    """Structure and define the game theory scenario."""
+    return f"""
     SYSTEM:
     You are an expert game theorist. Your role is to analyze and structure game theory
     scenarios, identifying key players, rules, information structures, and payoff mechanisms.
@@ -152,19 +153,18 @@ class GameAnalysis(BaseModel):
 
     Provide a complete game scenario structure with all key elements defined.
     """
-)
-def structure_game_scenario(situation: str, context: str = "", stakeholders: str = "", objectives: str = "") -> GameScenario:
-    """Structure and define the game theory scenario."""
-    pass
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=dict[str, list[GameStrategy]],
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=dict[str, list[GameStrategy]],
 )
-@prompt_template(
-    """
+def analyze_player_strategies(
+    game_scenario: GameScenario, player_profiles: list[PlayerProfile], game_rules: list[str], payoff_structure: str
+) -> str:
+    """Analyze available strategies for each player."""
+    return f"""
     SYSTEM:
     You are an expert strategic analyst. Your role is to identify and analyze all
     possible strategies available to each player in a game theory scenario.
@@ -200,26 +200,21 @@ def structure_game_scenario(situation: str, context: str = "", stakeholders: str
 
     Provide comprehensive strategy analysis for each player with detailed descriptions.
     """
-)
-def analyze_player_strategies(
-    game_scenario: GameScenario, player_profiles: list[PlayerProfile], game_rules: list[str], payoff_structure: str
-) -> BaseDynamicConfig:
-    """Analyze available strategies for each player."""
-    return {
-        "computed_fields": {
-            "game_scenario": game_scenario,
-            "player_profiles": player_profiles,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=list[str],
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=list[str],
 )
-@prompt_template(
-    """
+def analyze_equilibria(
+    game_scenario: GameScenario,
+    player_strategies: dict[str, list[GameStrategy]],
+    payoff_structure: str,
+    information_structure: str,
+) -> str:
+    """Analyze Nash equilibria and other solution concepts."""
+    return f"""
     SYSTEM:
     You are an expert in game theory equilibrium analysis. Your role is to identify
     and analyze Nash equilibria and other solution concepts in game theory scenarios.
@@ -251,29 +246,18 @@ def analyze_player_strategies(
 
     Provide detailed equilibrium analysis with mathematical reasoning where applicable.
     """
-)
-def analyze_equilibria(
-    game_scenario: GameScenario,
-    player_strategies: dict[str, list[GameStrategy]],
-    payoff_structure: str,
-    information_structure: str,
-) -> BaseDynamicConfig:
-    """Analyze Nash equilibria and other solution concepts."""
-    return {
-        "computed_fields": {
-            "game_scenario": game_scenario,
-            "player_strategies": player_strategies,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=list[GameOutcome],
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=list[GameOutcome],
 )
-@prompt_template(
-    """
+def predict_game_outcomes(
+    game_scenario: GameScenario, equilibrium_analysis: list[str], player_characteristics: str, environmental_factors: str = ""
+) -> str:
+    """Predict likely game outcomes with probabilities."""
+    return f"""
     SYSTEM:
     You are an expert in game theory outcome prediction. Your role is to predict
     likely outcomes of game theory scenarios based on equilibrium analysis and
@@ -307,26 +291,22 @@ def analyze_equilibria(
 
     Provide probabilistic outcome predictions with detailed reasoning.
     """
-)
-def predict_game_outcomes(
-    game_scenario: GameScenario, equilibrium_analysis: list[str], player_characteristics: str, environmental_factors: str = ""
-) -> BaseDynamicConfig:
-    """Predict likely game outcomes with probabilities."""
-    return {
-        "computed_fields": {
-            "game_scenario": game_scenario,
-            "equilibrium_analysis": equilibrium_analysis,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=GameAnalysis,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=GameAnalysis,
 )
-@prompt_template(
-    """
+def synthesize_game_analysis(
+    game_scenario: GameScenario,
+    player_strategies: dict[str, list[GameStrategy]],
+    equilibrium_analysis: list[str],
+    predicted_outcomes: list[GameOutcome],
+    context: str = "",
+) -> str:
+    """Synthesize complete game theory analysis."""
+    return f"""
     SYSTEM:
     You are an expert game theory consultant. Your role is to synthesize all game
     theory analysis into actionable strategic recommendations and insights.
@@ -361,23 +341,6 @@ def predict_game_outcomes(
 
     Provide comprehensive analysis with strategic recommendations and insights.
     """
-)
-def synthesize_game_analysis(
-    game_scenario: GameScenario,
-    player_strategies: dict[str, list[GameStrategy]],
-    equilibrium_analysis: list[str],
-    predicted_outcomes: list[GameOutcome],
-    context: str = "",
-) -> BaseDynamicConfig:
-    """Synthesize complete game theory analysis."""
-    return {
-        "computed_fields": {
-            "game_scenario": game_scenario,
-            "player_strategies": player_strategies,
-            "equilibrium_analysis": equilibrium_analysis,
-            "predicted_outcomes": predicted_outcomes,
-        }
-    }
 
 
 async def game_theory_analyzer(

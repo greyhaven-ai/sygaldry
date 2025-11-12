@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from enum import Enum
-from mirascope import BaseDynamicConfig, llm, prompt_template
+from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Optional
 
@@ -147,13 +147,11 @@ class DecisionQuality(BaseModel):
     confidence_level: float = Field(..., description="Confidence in the assessment (0-1)")
 
 
-@llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=DecisionContext,
-)
-@prompt_template(
-    """
+def _get_analyze_decision_context_prompt(
+    decision: str, background: str = "", stakeholders: str = "", constraints: str = "", timeline: str = ""
+) -> str:
+    """Get the prompt for analyzing decision context."""
+    return f"""
     SYSTEM:
     You are an expert decision analyst with deep expertise in organizational behavior,
     strategic planning, and decision science. Your role is to analyze and structure
@@ -196,21 +194,25 @@ class DecisionQuality(BaseModel):
 
     Provide a comprehensive context analysis for decision quality assessment.
     """
-)
-def analyze_decision_context(
-    decision: str, background: str = "", stakeholders: str = "", constraints: str = "", timeline: str = ""
-) -> DecisionContext:
-    """Analyze and structure the decision context."""
-    pass
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=list[DecisionAnalysis],
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=DecisionContext,
 )
-@prompt_template(
-    """
+def analyze_decision_context(
+    decision: str, background: str = "", stakeholders: str = "", constraints: str = "", timeline: str = ""
+) -> str:
+    """Analyze and structure the decision context."""
+    return _get_analyze_decision_context_prompt(decision, background, stakeholders, constraints, timeline)
+
+
+def _get_analyze_decision_alternatives_prompt(
+    decision_context: DecisionContext, alternatives: list[str], evaluation_criteria: str = "", success_metrics: str = ""
+) -> str:
+    """Get the prompt for analyzing decision alternatives."""
+    return f"""
     SYSTEM:
     You are an expert decision analyst specializing in multi-criteria decision analysis
     and alternative evaluation. Your role is to thoroughly analyze each decision
@@ -247,25 +249,25 @@ def analyze_decision_context(
 
     Provide comprehensive analysis for each alternative with realistic assessments.
     """
-)
-def analyze_decision_alternatives(
-    decision_context: DecisionContext, alternatives: list[str], evaluation_criteria: str = "", success_metrics: str = ""
-) -> BaseDynamicConfig:
-    """Analyze decision alternatives comprehensively."""
-    return {
-        "computed_fields": {
-            "decision_context": decision_context,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=list[QualityAssessment],
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=list[DecisionAnalysis],
 )
-@prompt_template(
-    """
+def analyze_decision_alternatives(
+    decision_context: DecisionContext, alternatives: list[str], evaluation_criteria: str = "", success_metrics: str = ""
+) -> str:
+    """Analyze decision alternatives comprehensively."""
+    return _get_analyze_decision_alternatives_prompt(decision_context, alternatives, evaluation_criteria, success_metrics)
+
+
+def _get_assess_decision_quality_dimensions_prompt(
+    decision_context: DecisionContext, decision_process: str, information_available: str = "", alternatives_considered: str = ""
+) -> str:
+    """Get the prompt for assessing decision quality dimensions."""
+    return f"""
     SYSTEM:
     You are an expert in decision quality assessment with deep knowledge of
     decision science, organizational behavior, and best practices in decision-making.
@@ -310,25 +312,25 @@ def analyze_decision_alternatives(
 
     Provide detailed quality assessment for each dimension.
     """
-)
-def assess_decision_quality_dimensions(
-    decision_context: DecisionContext, decision_process: str, information_available: str = "", alternatives_considered: str = ""
-) -> BaseDynamicConfig:
-    """Assess decision quality across multiple dimensions."""
-    return {
-        "computed_fields": {
-            "decision_context": decision_context,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=list[BiasAnalysis],
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=list[QualityAssessment],
 )
-@prompt_template(
-    """
+def assess_decision_quality_dimensions(
+    decision_context: DecisionContext, decision_process: str, information_available: str = "", alternatives_considered: str = ""
+) -> str:
+    """Assess decision quality across multiple dimensions."""
+    return _get_assess_decision_quality_dimensions_prompt(decision_context, decision_process, information_available, alternatives_considered)
+
+
+def _get_analyze_cognitive_biases_prompt(
+    decision_context: DecisionContext, decision_process: str, information_sources: str = "", decision_makers: str = ""
+) -> str:
+    """Get the prompt for analyzing cognitive biases."""
+    return f"""
     SYSTEM:
     You are an expert in cognitive psychology and behavioral economics, specializing
     in cognitive bias detection and mitigation in decision-making processes.
@@ -375,25 +377,25 @@ def assess_decision_quality_dimensions(
 
     Identify biases and provide mitigation strategies.
     """
-)
-def analyze_cognitive_biases(
-    decision_context: DecisionContext, decision_process: str, information_sources: str = "", decision_makers: str = ""
-) -> BaseDynamicConfig:
-    """Analyze potential cognitive biases affecting the decision."""
-    return {
-        "computed_fields": {
-            "decision_context": decision_context,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=DecisionFramework,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=list[BiasAnalysis],
 )
-@prompt_template(
-    """
+def analyze_cognitive_biases(
+    decision_context: DecisionContext, decision_process: str, information_sources: str = "", decision_makers: str = ""
+) -> str:
+    """Analyze potential cognitive biases affecting the decision."""
+    return _get_analyze_cognitive_biases_prompt(decision_context, decision_process, information_sources, decision_makers)
+
+
+def _get_recommend_decision_framework_prompt(
+    decision_context: DecisionContext, quality_assessment: list[QualityAssessment], key_challenges: str = ""
+) -> str:
+    """Get the prompt for recommending decision framework."""
+    return f"""
     SYSTEM:
     You are an expert in decision science and organizational strategy.
     Your role is to recommend the most appropriate decision-making framework
@@ -431,26 +433,29 @@ def analyze_cognitive_biases(
 
     Provide framework recommendation with implementation guidance.
     """
-)
-def recommend_decision_framework(
-    decision_context: DecisionContext, quality_assessment: list[QualityAssessment], key_challenges: str = ""
-) -> BaseDynamicConfig:
-    """Recommend appropriate decision-making framework."""
-    return {
-        "computed_fields": {
-            "decision_context": decision_context,
-            "quality_assessment": quality_assessment,
-        }
-    }
 
 
 @llm.call(
-    provider="openai",
-    model="gpt-4o",
-    response_model=DecisionQuality,
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=DecisionFramework,
 )
-@prompt_template(
-    """
+def recommend_decision_framework(
+    decision_context: DecisionContext, quality_assessment: list[QualityAssessment], key_challenges: str = ""
+) -> str:
+    """Recommend appropriate decision-making framework."""
+    return _get_recommend_decision_framework_prompt(decision_context, quality_assessment, key_challenges)
+
+
+def _get_synthesize_decision_quality_prompt(
+    decision: str,
+    context_analysis: DecisionContext,
+    alternatives_analysis: list[DecisionAnalysis],
+    quality_assessments: list[QualityAssessment],
+    bias_analysis: list[BiasAnalysis],
+) -> str:
+    """Get the prompt for synthesizing decision quality."""
+    return f"""
     SYSTEM:
     You are a senior decision quality consultant with expertise in strategic
     decision-making, organizational psychology, and change management.
@@ -496,6 +501,12 @@ def recommend_decision_framework(
 
     Provide comprehensive decision quality assessment with recommendations.
     """
+
+
+@llm.call(
+    provider="openai:completions",
+    model_id="gpt-4o",
+    format=DecisionQuality,
 )
 def synthesize_decision_quality(
     decision: str,
@@ -503,16 +514,9 @@ def synthesize_decision_quality(
     alternatives_analysis: list[DecisionAnalysis],
     quality_assessments: list[QualityAssessment],
     bias_analysis: list[BiasAnalysis],
-) -> BaseDynamicConfig:
+) -> str:
     """Synthesize complete decision quality assessment."""
-    return {
-        "computed_fields": {
-            "context_analysis": context_analysis,
-            "alternatives_analysis": alternatives_analysis,
-            "quality_assessments": quality_assessments,
-            "bias_analysis": bias_analysis,
-        }
-    }
+    return _get_synthesize_decision_quality_prompt(decision, context_analysis, alternatives_analysis, quality_assessments, bias_analysis)
 
 
 async def decision_quality_assessor(

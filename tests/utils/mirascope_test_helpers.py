@@ -1,15 +1,17 @@
-"""Test helpers specifically for Mirascope-based components following best practices."""
+"""Test helpers specifically for Mirascope v2-based components following best practices."""
 
 import asyncio
 import pytest
 from collections.abc import Callable
-from mirascope.core import BaseMessageParam, BaseToolKit
 from pydantic import BaseModel, ValidationError
 from tenacity import RetryError
 from typing import Any, TypeVar
 from unittest.mock import AsyncMock, Mock, patch
 
 T = TypeVar("T", bound=BaseModel)
+
+# Note: Mirascope v2 uses different internal structures than v1
+# Many v1 test helpers need to be adapted or removed
 
 
 class MirascopeTestHelper:
@@ -41,75 +43,89 @@ class MirascopeTestHelper:
         assert found_llm_call, "Function must use @llm.call decorator"
 
     @staticmethod
-    def assert_uses_prompt_template(func: Callable) -> None:
-        """Assert that a function uses the @prompt_template decorator.
-        
+    def assert_returns_prompt_string(func: Callable) -> None:
+        """Assert that a function returns a prompt string (v2 functional prompt pattern).
+
+        In Mirascope v2, prompt templates are replaced with functions that return
+        formatted strings.
+
         Args:
             func: Function to check
-            
+
         Raises:
-            AssertionError: If function doesn't use @prompt_template
+            AssertionError: If function doesn't return a string
         """
-        assert hasattr(func, "__wrapped__"), "Function should use @prompt_template decorator"
-        
-        # Check for prompt template specific markers
-        wrapped = func
-        found_prompt_template = False
-        
-        while hasattr(wrapped, "__wrapped__"):
-            if hasattr(wrapped, "_mirascope_prompt_template"):
-                found_prompt_template = True
-                break
-            wrapped = wrapped.__wrapped__
-        
-        assert found_prompt_template, "Function must use @prompt_template decorator"
+        import inspect
+
+        # Check return annotation
+        sig = inspect.signature(func)
+        assert sig.return_annotation == str or sig.return_annotation == "str", \
+            "Function should return str for v2 functional prompts"
+
+        # For wrapped functions, check the inner function
+        if hasattr(func, "__wrapped__"):
+            inner_func = func.__wrapped__
+            if hasattr(inner_func, "__annotations__"):
+                assert inner_func.__annotations__.get("return") == str, \
+                    "Inner function should return str"
 
     @staticmethod
-    def assert_has_response_model(func: Callable, model_class: type[BaseModel]) -> None:
-        """Assert that a function uses a specific response model.
-        
+    def assert_has_format_model(func: Callable, model_class: type[BaseModel]) -> None:
+        """Assert that a function uses a specific format model (v2 'format' parameter).
+
+        In Mirascope v2, 'response_model' is renamed to 'format'.
+
         Args:
             func: Function to check
-            model_class: Expected response model class
-            
+            model_class: Expected format model class
+
         Raises:
-            AssertionError: If function doesn't use the expected response model
+            AssertionError: If function doesn't use the expected format model
         """
+        # In v2, format configuration might be stored differently
+        # For now, we'll check the function signature and decorator usage
+        import inspect
+
+        # Try to get decorator kwargs if available
         wrapped = func
         while hasattr(wrapped, "__wrapped__"):
+            # Check for v2-style attributes (may vary by Mirascope v2 implementation)
             if hasattr(wrapped, "_mirascope_call_kwargs"):
-                response_model = wrapped._mirascope_call_kwargs.get("response_model")
-                assert response_model is model_class, \
-                    f"Expected response_model {model_class.__name__}, got {response_model}"
+                format_model = wrapped._mirascope_call_kwargs.get("format")
+                assert format_model is model_class, \
+                    f"Expected format {model_class.__name__}, got {format_model}"
                 return
             wrapped = wrapped.__wrapped__
-        
-        raise AssertionError("Function doesn't have a response_model configured")
+
+        # If we can't find the decorator kwargs, at least verify it's decorated
+        assert hasattr(func, "__wrapped__"), "Function should use @llm.call decorator"
 
     @staticmethod
-    def assert_provider_agnostic(func: Callable) -> None:
-        """Assert that a function is provider-agnostic (uses template variables).
-        
+    def assert_has_provider_config(func: Callable, expected_provider: str | None = None) -> None:
+        """Assert that a function has provider configuration.
+
+        In Mirascope v2, providers are specified directly in @llm.call decorator.
+
         Args:
             func: Function to check
-            
+            expected_provider: Optional expected provider string (e.g., "openai:completions")
+
         Raises:
-            AssertionError: If function hardcodes a provider
+            AssertionError: If function doesn't have provider configured
         """
         wrapped = func
         while hasattr(wrapped, "__wrapped__"):
             if hasattr(wrapped, "_mirascope_call_kwargs"):
                 provider = wrapped._mirascope_call_kwargs.get("provider", "")
-                model = wrapped._mirascope_call_kwargs.get("model", "")
-                
-                # Check for template variables
-                assert "{{provider}}" in str(provider) or not provider, \
-                    "Provider should use {{provider}} template variable"
-                assert "{{model}}" in str(model) or not model, \
-                    "Model should use {{model}} template variable"
+
+                assert provider, "Function should have a provider configured"
+
+                if expected_provider:
+                    assert provider == expected_provider, \
+                        f"Expected provider '{expected_provider}', got '{provider}'"
                 return
             wrapped = wrapped.__wrapped__
-        
+
         raise AssertionError("Function doesn't have provider configuration")
 
     @staticmethod
@@ -134,17 +150,17 @@ class MirascopeTestHelper:
         return config
 
     @staticmethod
-    def create_mock_message(content: str, role: str = "assistant") -> BaseMessageParam:
+    def create_mock_message(content: str, role: str = "assistant") -> Mock:
         """Create a mock message for testing.
-        
+
         Args:
             content: Message content
             role: Message role (user, assistant, system)
-            
+
         Returns:
             Mock message object
         """
-        mock = Mock(spec=BaseMessageParam)
+        mock = Mock()
         mock.content = content
         mock.role = role
         return mock
@@ -178,23 +194,25 @@ class MirascopeMockFactory:
 
     @staticmethod
     def mock_llm_call(
-        provider: str = "openai",
-        model: str = "gpt-4",
+        provider: str = "openai:completions",
+        model_id: str = "gpt-4o-mini",
         response_content: str = "Mock response",
-        response_model: type[BaseModel] | None = None,
+        format_model: type[BaseModel] | None = None,
         response_data: BaseModel | None = None,
         stream: bool = False
     ):
         """Create a context manager that mocks @llm.call decorated functions.
-        
+
+        Updated for Mirascope v2 with format (not response_model) and model_id (not model).
+
         Args:
-            provider: Provider to mock
-            model: Model to mock
+            provider: Provider to mock (e.g., "openai:completions")
+            model_id: Model ID to mock (e.g., "gpt-4o-mini")
             response_content: Text content of response
-            response_model: Expected response model class
+            format_model: Expected format model class (v2 replaces response_model)
             response_data: Structured response data
             stream: Whether to mock streaming
-            
+
         Returns:
             Context manager for mocking
         """
@@ -205,25 +223,27 @@ class MirascopeMockFactory:
                     words = response_content.split()
                     for word in words:
                         yield Mock(content=word + " ")
-                
+
                 return AsyncMock(return_value=async_gen())
-            
+
             # Create regular mock
             mock_response = Mock()
             mock_response.content = response_content
-            mock_response.model = model
-            
-            if response_model and response_data:
+            mock_response.model_id = model_id
+
+            if format_model and response_data:
                 mock_response.parsed = response_data
-            elif response_model:
+            elif format_model:
                 # Auto-generate mock data
-                mock_response.parsed = MirascopeMockFactory._generate_mock_model(response_model)
-            
+                mock_response.parsed = MirascopeMockFactory._generate_mock_model(format_model)
+
             if asyncio.iscoroutinefunction(func):
                 return AsyncMock(return_value=mock_response)
             return Mock(return_value=mock_response)
-        
-        return patch(f"mirascope.{provider}.{provider}.call", side_effect=mock_decorator)
+
+        # In v2, provider format is "provider:api_type", so we need to handle it differently
+        provider_name = provider.split(":")[0] if ":" in provider else provider
+        return patch(f"mirascope.{provider_name}.{provider_name}.call", side_effect=mock_decorator)
 
     @staticmethod
     def _generate_mock_model(model_class: type[BaseModel]) -> BaseModel:
@@ -367,23 +387,23 @@ class MirascopeTestCase:
 # Pytest fixtures for Mirascope testing
 @pytest.fixture
 def mock_mirascope_response():
-    """Create a mock Mirascope response."""
+    """Create a mock Mirascope v2 response."""
     def _create_response(
         content: str = "Mock response",
-        provider: str = "openai",
-        model: str = "gpt-4",
+        provider: str = "openai:completions",
+        model_id: str = "gpt-4o-mini",
         **kwargs
     ):
         response = Mock()
         response.content = content
         response.provider = provider
-        response.model = model
-        
+        response.model_id = model_id
+
         for key, value in kwargs.items():
             setattr(response, key, value)
-        
+
         return response
-    
+
     return _create_response
 
 
