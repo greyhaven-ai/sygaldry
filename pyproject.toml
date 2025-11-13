@@ -113,9 +113,15 @@ youtube = [
     "youtube-transcript-api>=0.6.0",
 ]
 
+# Trading tools and agents
+# Agents requiring this: hyperliquid_trading_agent
+trading = [
+    "hyperliquid-python-sdk>=0.2.0",  # Hyperliquid DEX SDK
+]
+
 # Install all agent dependencies at once
 all-agents = [
-    "sygaldry-cli[agents,observability,async-io,search,database,web,documents,git,data,fuzzy,youtube]",
+    "sygaldry-cli[agents,observability,async-io,search,database,web,documents,git,data,fuzzy,youtube,trading]",
 ]
 
 # ========== Development Dependencies ==========

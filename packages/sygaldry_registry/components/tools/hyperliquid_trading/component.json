@@ -1,0 +1,69 @@
+{
+  "$schema": "https://sygaldry.ai/schemas/component.json",
+  "name": "hyperliquid-trading-tool",
+  "version": "0.1.0",
+  "description": "Comprehensive Hyperliquid DEX trading tools for account management, market data, order execution, and position management with testnet support",
+  "type": "tool",
+  "authors": [
+    {
+      "name": "Sygaldry Project",
+      "email": "info@sygaldry.ai"
+    }
+  ],
+  "license": "MIT",
+  "repository_url": "https://github.com/greyhaven-ai/sygaldry",
+  "mirascope_version_min": "2.0.0a1",
+  "files_to_copy": [
+    {
+      "source": "tool.py",
+      "destination": "tool.py",
+      "type": "module"
+    },
+    {
+      "source": "__init__.py",
+      "destination": "__init__.py",
+      "type": "init_file"
+    }
+  ],
+  "target_directory_key": "tools",
+  "python_dependencies": [
+    "mirascope>=2.0.0a1",
+    "pydantic>=2.0.0",
+    "hyperliquid-python-sdk>=0.2.0"
+  ],
+  "registry_dependencies": [],
+  "environment_variables": [
+    {
+      "name": "HYPERLIQUID_WALLET_ADDRESS",
+      "description": "Your Hyperliquid wallet address (account address)",
+      "required": true
+    },
+    {
+      "name": "HYPERLIQUID_API_SECRET",
+      "description": "API wallet secret key for trading operations (recommended to use dedicated API wallet)",
+      "required": true,
+      "sensitive": true
+    },
+    {
+      "name": "HYPERLIQUID_USE_TESTNET",
+      "description": "Use testnet instead of mainnet (default: true)",
+      "required": false,
+      "default": "true"
+    }
+  ],
+  "example_usage": "```python\nfrom sygaldry_registry.tools.hyperliquid_trading import (\n    check_account_balance,\n    get_open_positions,\n    get_market_data,\n    place_market_order,\n    place_limit_order,\n    close_position,\n)\n\n# Check account balance\nbalance = check_account_balance(testnet=True)\nprint(f\"Account Value: ${balance['account_value']}\")\n\n# Get market data\nbtc_data = get_market_data('BTC', testnet=True)\nprint(f\"BTC Price: ${btc_data['mark_price']}\")\nprint(f\"Funding Rate: {btc_data['funding_rate']}\")\n\n# Get open positions\npositions = get_open_positions(testnet=True)\nfor pos in positions:\n    print(f\"{pos['coin']}: {pos['side']} {pos['size']} @ ${pos['entry_price']}\")\n    print(f\"  Unrealized P&L: ${pos['unrealized_pnl']}\")\n\n# Place a limit order\norder_result = place_limit_order(\n    coin='BTC',\n    side='buy',\n    size=0.01,\n    price=50000.0,\n    testnet=True\n)\n\n# Place a market order\nmarket_result = place_market_order(\n    coin='ETH',\n    side='buy',\n    size=0.1,\n    testnet=True\n)\n\n# Close a position\nclose_result = close_position('BTC', testnet=True)\n```",
+  "post_add_instructions": "You can now use the Hyperliquid trading tools. Make sure to set the required environment variables:\n\n1. HYPERLIQUID_WALLET_ADDRESS - Your main wallet address\n2. HYPERLIQUID_API_SECRET - API wallet secret (generate at https://app.hyperliquid.xyz/API)\n3. HYPERLIQUID_USE_TESTNET - Set to 'true' for safe testing (default)\n\nAvailable tools:\n- check_account_balance() - Get account balance and margin info\n- get_open_positions() - Get all open positions\n- get_market_data() - Get market data for a coin\n- get_funding_rate() - Get funding rate information\n- get_order_book() - Get order book depth\n- place_market_order() - Execute market orders\n- place_limit_order() - Place limit orders\n- cancel_order() - Cancel open orders\n- close_position() - Close entire position\n\nAll tools support testnet mode (enabled by default) for safe testing.",
+  "tags": [
+    "trading",
+    "hyperliquid",
+    "dex",
+    "cryptocurrency",
+    "perpetuals",
+    "orderbook",
+    "defi"
+  ],
+  "supports_lilypad": false,
+  "template_variables": null,
+  "mcp_compatible": false,
+  "mcp_entrypoint": ""
+}
