@@ -38,6 +38,8 @@ class InteractiveHyperliquidAgent(HyperliquidTradingAgent):
         db_path: str = "hyperliquid_trading_state.db",
         testnet: bool = True,
         reflection_interval_hours: int = 6,  # How often to self-reflect
+        enable_mcp: bool = False,  # Enable Exa MCP for enhanced research
+        mcp_api_key: Optional[str] = None,  # Exa API key for MCP
     ):
         """Initialize interactive trading agent.
 
@@ -47,6 +49,8 @@ class InteractiveHyperliquidAgent(HyperliquidTradingAgent):
             db_path: Path to state database
             testnet: Use testnet (default: True for safety)
             reflection_interval_hours: Hours between self-reflections
+            enable_mcp: Enable Exa MCP for real-time news and research
+            mcp_api_key: Exa API key (or from EXA_API_KEY env var)
         """
         super().__init__(starting_capital, risk_params, db_path, testnet)
 
@@ -54,6 +58,25 @@ class InteractiveHyperliquidAgent(HyperliquidTradingAgent):
         self.controller = AgentController()
         self.reflection_engine = SelfReflectionEngine(self.state_manager, starting_capital)
         self.reflection_interval = timedelta(hours=reflection_interval_hours)
+
+        # MCP integration
+        self.mcp_enabled = enable_mcp
+        self.mcp_client = None
+        if enable_mcp:
+            try:
+                from .mcp_client import ExaMCPClient
+                import os
+
+                api_key = mcp_api_key or os.getenv("EXA_API_KEY")
+                if api_key:
+                    self.mcp_client = ExaMCPClient(api_key=api_key)
+                    print(f"✓ MCP enabled for enhanced market research")
+                else:
+                    print(f"⚠️  MCP requested but no API key found. Continuing without MCP.")
+                    self.mcp_enabled = False
+            except ImportError:
+                print(f"⚠️  MCP client not available. Install httpx to enable MCP support.")
+                self.mcp_enabled = False
 
         # State
         self.is_paused = False
@@ -452,3 +475,100 @@ async def run_interactive_trading(
     result = await agent.run_interactive_trading(markets=markets, duration_hours=duration_hours)
 
     return result, agent.controller
+
+    async def analyze_market_with_news(self, coin: str) -> Any:
+        """Analyze market with real-time news research via MCP.
+
+        Args:
+            coin: Trading pair to analyze
+
+        Returns:
+            Enhanced market analysis with news context
+        """
+        # Get base market analysis
+        from .agent import MarketAnalysis
+
+        analysis = await self.analyze_market(coin)
+
+        # Enhance with MCP news if available
+        if self.mcp_enabled and self.mcp_client:
+            try:
+                # Search for recent news
+                news = await self.mcp_client.search_news(f"{coin} cryptocurrency", max_results=5)
+
+                # Add news context to reasoning
+                enhanced_reasoning = f"{analysis.reasoning}\n\nRecent News Context:\n{news}"
+                analysis.reasoning = enhanced_reasoning
+
+                print(f"✓ Enhanced {coin} analysis with MCP news research")
+
+            except Exception as e:
+                print(f"⚠️  MCP news search failed: {e}. Using base analysis.")
+
+        return analysis
+
+    async def research_token_project(self, coin: str) -> str:
+        """Research the project/company behind a token.
+
+        Args:
+            coin: Token symbol
+
+        Returns:
+            Project research summary
+        """
+        if not self.mcp_enabled or not self.mcp_client:
+            return "MCP not enabled. Unable to perform project research."
+
+        try:
+            # Map common symbols to domains
+            domain_map = {
+                "BTC": "bitcoin.org",
+                "ETH": "ethereum.org",
+                "SOL": "solana.com",
+                "AVAX": "avax.network",
+                "MATIC": "polygon.technology",
+            }
+
+            domain = domain_map.get(coin, f"{coin.lower()}.io")
+
+            research = await self.mcp_client.research_company(domain)
+
+            return research
+
+        except Exception as e:
+            return f"Research failed: {e}"
+
+    async def get_market_news_context(self, markets: list[str]) -> dict[str, str]:
+        """Get news context for multiple markets.
+
+        Args:
+            markets: List of markets to research
+
+        Returns:
+            Dictionary of market -> news summary
+        """
+        if not self.mcp_enabled or not self.mcp_client:
+            return {market: "MCP not enabled" for market in markets}
+
+        news_context = {}
+
+        for market in markets:
+            try:
+                news = await self.mcp_client.search_news(f"{market} cryptocurrency market", max_results=3)
+                news_context[market] = news
+            except Exception as e:
+                news_context[market] = f"News search failed: {e}"
+
+        return news_context
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit."""
+        # Close MCP client if active
+        if self.mcp_client:
+            await self.mcp_client.close()
+
+

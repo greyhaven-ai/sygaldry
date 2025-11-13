@@ -57,6 +57,12 @@ from .terminal_interface import (
     TerminalInterface,
     run_terminal_interface,
 )
+from .mcp_client import (
+    ExaMCPClient,
+    MCPTool,
+    MCPResponse,
+    quick_exa_search,
+)
 
 __all__ = [
     # Agent
@@ -84,6 +90,11 @@ __all__ = [
     # Terminal Interface
     "TerminalInterface",
     "run_terminal_interface",
+    # MCP Client
+    "ExaMCPClient",
+    "MCPTool",
+    "MCPResponse",
+    "quick_exa_search",
     # Strategies
     "StrategyType",
     "TradingStrategy",
