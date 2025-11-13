@@ -35,6 +35,24 @@ from .state_manager import (
     TradeRecord,
     PerformanceSnapshot,
 )
+from .interactive_agent import (
+    InteractiveHyperliquidAgent,
+    run_interactive_trading,
+)
+from .agent_control import (
+    AgentController,
+    AgentCommand,
+    AgentResponse,
+    CommandType,
+    AgentStatus,
+    InteractiveAgentSession,
+)
+from .self_reflection import (
+    SelfReflectionEngine,
+    PerformanceReview,
+    StrategyAdaptation,
+    EnvironmentContext,
+)
 
 __all__ = [
     # Agent
@@ -44,6 +62,21 @@ __all__ = [
     "TradeDecision",
     "trade_autonomous",
     "trade_with_strategy",
+    # Interactive Agent
+    "InteractiveHyperliquidAgent",
+    "run_interactive_trading",
+    # Agent Control
+    "AgentController",
+    "AgentCommand",
+    "AgentResponse",
+    "CommandType",
+    "AgentStatus",
+    "InteractiveAgentSession",
+    # Self-Reflection
+    "SelfReflectionEngine",
+    "PerformanceReview",
+    "StrategyAdaptation",
+    "EnvironmentContext",
     # Strategies
     "StrategyType",
     "TradingStrategy",

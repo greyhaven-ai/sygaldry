@@ -421,3 +421,318 @@ MIT License - See LICENSE file for details
 ## Disclaimer
 
 This software is provided "as is" without warranty of any kind. Use at your own risk. The authors are not responsible for any losses incurred from using this agent. Always trade responsibly and within your risk tolerance.
+
+## 🔥 New: Interactive Mode with Real-Time Communication
+
+The agent now supports **interactive mode** with real-time communication and self-reflection capabilities!
+
+### Interactive Features
+
+#### 1. **Real-Time Commands**
+
+Send commands to the agent while it's running:
+
+```python
+import asyncio
+from sygaldry_registry.agents.hyperliquid_trading_agent import (
+    InteractiveHyperliquidAgent,
+    RiskParams,
+)
+
+async def main():
+    # Initialize interactive agent
+    agent = InteractiveHyperliquidAgent(
+        starting_capital=1000.0,
+        risk_params=RiskParams(),
+        testnet=True,
+        reflection_interval_hours=6,  # Self-reflect every 6 hours
+    )
+
+    # Start trading in background
+    trading_task = asyncio.create_task(
+        agent.run_interactive_trading(
+            markets=["BTC", "ETH"],
+            duration_hours=24,
+        )
+    )
+
+    # Wait a bit for agent to start
+    await asyncio.sleep(10)
+
+    # Now you can send commands!
+    
+    # Pause trading
+    await agent.controller.pause_trading()
+    
+    # Request market analysis
+    response = await agent.controller.request_analysis("BTC")
+    print(response.message)
+    
+    # Provide human feedback
+    await agent.controller.provide_feedback(
+        "I noticed you're taking too many losses on ETH. "
+        "Consider reducing position size or avoiding that market."
+    )
+    
+    # Request self-reflection
+    response = await agent.controller.request_self_reflection()
+    print(response.data["review"])
+    
+    # Adjust risk parameters on the fly
+    await agent.controller.adjust_risk(
+        max_position_size_pct=0.10,  # Reduce to 10%
+        stop_loss_pct=0.015,  # Tighten stops
+    )
+    
+    # Resume trading
+    await agent.controller.resume_trading()
+    
+    # Close all positions
+    await agent.controller.close_all_positions()
+    
+    # Change strategy
+    await agent.controller.change_strategy("mean_reversion", ["BTC"])
+    
+    # Wait for completion
+    result = await trading_task
+
+asyncio.run(main())
+```
+
+#### 2. **Self-Reflection & Learning**
+
+The agent periodically reviews its own performance:
+
+```python
+# Agent automatically reflects every N hours (configurable)
+agent = InteractiveHyperliquidAgent(
+    starting_capital=1000.0,
+    reflection_interval_hours=4,  # Reflect every 4 hours
+)
+
+# You can also request reflection manually
+response = await agent.controller.request_self_reflection()
+
+# The agent will analyze:
+# - What strategies worked well
+# - What strategies failed
+# - Mistakes it made
+# - Lessons learned
+# - Recommended changes
+```
+
+Example self-reflection output:
+
+```
+Self-Reflection Summary:
+- Win Rate: 65.0%
+- Total P&L: $125.50
+- Confidence: 75%
+
+What Worked:
+  • Trend following entries during high volume periods
+  • Quick exits when momentum reversed
+  • Proper position sizing based on volatility
+
+What Failed:
+  • Mean reversion trades in strong trending markets
+  • Holding losers too long hoping for reversal
+  • Ignoring funding rate signals
+
+Lessons Learned:
+  • Market regime matters - don't fight the trend
+  • Cut losses faster when thesis invalidated
+  • Combine multiple signals for higher probability
+
+Recommendations:
+  • Focus on trend following in current market
+  • Reduce mean reversion position sizes
+  • Add funding rate filter to entry criteria
+```
+
+#### 3. **Human-in-the-Loop Feedback**
+
+Provide continuous feedback to guide the agent:
+
+```python
+# Provide feedback about specific trades
+await agent.controller.provide_feedback(
+    "Great job on that BTC long! You caught the breakout perfectly. "
+    "The entry timing was excellent."
+)
+
+# Strategic guidance
+await agent.controller.provide_feedback(
+    "The market is becoming more choppy. Consider reducing position "
+    "sizes and being more selective with entries."
+)
+
+# Feedback on mistakes
+await agent.controller.provide_feedback(
+    "That ETH trade violated your entry rules. You entered without "
+    "proper volume confirmation. Stay disciplined!"
+)
+
+# The agent incorporates this feedback into future decisions
+# and self-reflection
+```
+
+#### 4. **Environment Awareness**
+
+The agent has access to and understands its own state:
+
+- Current capital and P&L
+- Open positions and their performance
+- Recent trade history
+- Risk parameters and limits
+- Circuit breaker status
+- Recent human feedback
+- Market conditions per asset
+
+```python
+# Agent can explain its current state
+status = agent.controller.status
+
+print(f"Agent is running: {status.is_running}")
+print(f"Current strategy: {status.current_strategy}")
+print(f"Open positions: {status.open_positions}")
+print(f"Total P&L: ${status.total_pnl:.2f}")
+print(f"Circuit breaker: {status.circuit_breaker_active}")
+```
+
+#### 5. **Adaptive Strategy**
+
+The agent can adapt its strategy based on performance:
+
+```python
+# After self-reflection, agent may recommend changes
+# You can approve or modify these recommendations
+
+# Example: Agent realizes mean reversion isn't working
+# and recommends switching to trend following
+
+response = await agent.controller.request_self_reflection()
+review = response.data["review"]
+
+if review["confidence_level"] < 0.5:
+    # Low confidence - consider changes
+    print(f"Agent recommends: {review['recommended_changes']}")
+    
+    # You can accept the recommendation
+    await agent.controller.change_strategy(
+        "trend_following",
+        markets=review["markets_to_focus"]
+    )
+```
+
+### Available Commands
+
+All commands that can be sent to the agent:
+
+```python
+from sygaldry_registry.agents.hyperliquid_trading_agent import CommandType
+
+# Trading control
+await controller.pause_trading()
+await controller.resume_trading()
+await controller.stop_trading()
+
+# Position management
+await controller.close_all_positions()
+await controller.close_position("BTC")
+
+# Analysis & reflection
+await controller.request_analysis("BTC")
+await controller.request_self_reflection()
+await controller.request_performance()
+
+# Configuration
+await controller.change_strategy("trend_following", ["BTC", "ETH"])
+await controller.adjust_risk(max_position_size_pct=0.15)
+await controller.update_markets(["BTC", "SOL"])
+
+# Human feedback
+await controller.provide_feedback("Your feedback here")
+await controller.approve_trade(trade_id="123")
+await controller.reject_trade(trade_id="123", reason="Too risky")
+```
+
+### Message History
+
+View all communication with the agent:
+
+```python
+# Get message history
+history = agent.controller.get_message_history(limit=50)
+
+for msg in history:
+    print(f"[{msg['timestamp']}] {msg['sender']}: {msg['message']}")
+```
+
+Example output:
+```
+[14:23:15] human: Pausing trading
+[14:23:15] agent: Trading paused. Send RESUME_TRADING to continue.
+[14:25:30] human: Request analysis for BTC
+[14:25:32] agent: BTC Analysis: Trend: bullish, Confidence: 85%
+[14:30:00] human: Feedback: Good trade on that BTC long!
+[14:30:01] agent: Thank you for the feedback. I'll incorporate this...
+```
+
+### Combining Interactive and Autonomous Modes
+
+```python
+async def supervised_autonomous_trading():
+    """Autonomous trading with human supervision."""
+    
+    agent = InteractiveHyperliquidAgent(
+        starting_capital=1000.0,
+        risk_params=RiskParams(
+            require_approval_above_usd=100,  # Require approval for large trades
+        ),
+        reflection_interval_hours=3,
+    )
+    
+    # Start autonomous trading
+    trading_task = asyncio.create_task(
+        agent.run_interactive_trading(markets=["BTC", "ETH"])
+    )
+    
+    # Monitor and provide guidance
+    while not trading_task.done():
+        await asyncio.sleep(300)  # Check every 5 minutes
+        
+        # Get current status
+        status = agent.controller.status
+        
+        # If losing too much, intervene
+        if status.daily_pnl < -50:
+            await agent.controller.pause_trading()
+            await agent.controller.provide_feedback(
+                "Daily loss limit approaching. Reassess strategy."
+            )
+            
+            # Request reflection
+            await agent.controller.request_self_reflection()
+            
+            # Resume with reduced risk
+            await agent.controller.adjust_risk(
+                max_position_size_pct=0.10
+            )
+            await agent.controller.resume_trading()
+    
+    return await trading_task
+```
+
+### Benefits of Interactive Mode
+
+1. **Real-time control**: Pause, resume, or stop trading instantly
+2. **Continuous learning**: Agent learns from its mistakes and your feedback
+3. **Adaptive strategy**: Changes approach based on performance
+4. **Transparency**: See agent's reasoning and reflection
+5. **Human oversight**: Provide guidance without micromanaging
+6. **Risk management**: Intervene quickly if needed
+7. **Performance insights**: Understand what works and what doesn't
+
+This makes the agent much more powerful - it's not just autonomous, it's **collaborative**!
+
