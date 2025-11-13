@@ -1,0 +1,66 @@
+{
+  "$schema": "https://sygaldry.ai/schemas/component.json",
+  "name": "financial_statement_analyzer",
+  "version": "0.1.0",
+  "description": "Analyzes financial reports, calculates ratios, identifies trends, and provides investment insights with comprehensive ratio analysis and recommendations.",
+  "type": "agent",
+  "authors": [
+    {
+      "name": "Sygaldry Project",
+      "email": "info@sygaldry.ai"
+    }
+  ],
+  "license": "MIT",
+  "repository_url": "https://github.com/greyhaven-ai/sygaldry",
+  "mirascope_version_min": "2.0.0",
+  "files_to_copy": [
+    {
+      "source": "agent.py",
+      "destination": "financial_statement_analyzer/agent.py",
+      "type": "module"
+    },
+    {
+      "source": "__init__.py",
+      "destination": "financial_statement_analyzer/__init__.py",
+      "type": "init_file"
+    }
+  ],
+  "target_directory_key": "agents",
+  "python_dependencies": [
+    "mirascope>=2.0.0",
+    "pydantic>=2.0.0",
+    "lilypad>=0.1.0"
+  ],
+  "registry_dependencies": [],
+  "environment_variables": [
+    {
+      "name": "OPENAI_API_KEY",
+      "description": "OpenAI API key for GPT models",
+      "required": false
+    },
+    {
+      "name": "ANTHROPIC_API_KEY",
+      "description": "Anthropic API key for Claude models",
+      "required": false
+    }
+  ],
+  "example_usage": "```python\nimport asyncio\nfrom financial_statement_analyzer import (\n    analyze_financial_statements,\n    quick_health_check,\n    calculate_ratios_only\n)\n\nasync def main():\n    financial_data = {\n        \"income_statement\": {\n            \"revenue\": 1000000,\n            \"cost_of_goods_sold\": 600000,\n            \"operating_income\": 200000,\n            \"net_income\": 150000\n        },\n        \"balance_sheet\": {\n            \"total_assets\": 2000000,\n            \"current_assets\": 500000,\n            \"total_liabilities\": 800000,\n            \"current_liabilities\": 300000,\n            \"total_equity\": 1200000\n        }\n    }\n    \n    # Full financial analysis\n    result = await analyze_financial_statements(financial_data)\n    \n    print(f\"Overall Rating: {result.overall_rating}\")\n    print(f\"Recommendation: {result.recommendation}\")\n    print(f\"\\nSummary: {result.summary}\")\n    \n    print(f\"\\nKey Ratios:\")\n    print(f\"  Net Margin: {result.ratios.net_margin:.2f}%\")\n    print(f\"  Current Ratio: {result.ratios.current_ratio:.2f}\")\n    print(f\"  ROE: {result.ratios.return_on_equity:.2f}%\")\n    \n    print(f\"\\nRed Flags: {len(result.red_flags)}\")\n    for flag in result.red_flags:\n        print(f\"  [{flag.severity}] {flag.description}\")\n    \n    # Quick health check\n    health = await quick_health_check(financial_data)\n    print(f\"\\nQuick Health Check:\")\n    print(f\"  Profitability: {health['profitability']}\")\n    print(f\"  Liquidity: {health['liquidity']}\")\n\nif __name__ == \"__main__\":\n    asyncio.run(main())\n```",
+  "post_add_instructions": "This agent analyzes financial statements to calculate ratios, identify trends, detect red flags, and provide investment recommendations. It calculates profitability (margins, ROA, ROE), liquidity (current, quick, cash ratios), leverage (debt ratios), and efficiency metrics. Provides comprehensive analysis with trend identification and actionable insights. Set your preferred LLM provider's API key.",
+  "tags": [
+    "finance",
+    "financial_analysis",
+    "investment",
+    "ratios",
+    "agent",
+    "mirascope",
+    "accounting",
+    "lilypad"
+  ],
+  "supports_lilypad": true,
+  "template_variables": {
+    "provider": "openai",
+    "model": "gpt-4o-mini"
+  },
+  "mcp_compatible": false,
+  "mcp_entrypoint": ""
+}

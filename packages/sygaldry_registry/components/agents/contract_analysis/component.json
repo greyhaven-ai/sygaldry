@@ -1,0 +1,67 @@
+{
+  "$schema": "https://sygaldry.ai/schemas/component.json",
+  "name": "contract_analysis_agent",
+  "version": "0.1.0",
+  "description": "Legal document analysis agent for identifying risks, obligations, and key terms in contracts. Provides comprehensive contract review with clause categorization, risk assessment, and actionable recommendations.",
+  "type": "agent",
+  "authors": [
+    {
+      "name": "Sygaldry Project",
+      "email": "info@sygaldry.ai"
+    }
+  ],
+  "license": "MIT",
+  "repository_url": "https://github.com/greyhaven-ai/sygaldry",
+  "mirascope_version_min": "2.0.0",
+  "files_to_copy": [
+    {
+      "source": "agent.py",
+      "destination": "contract_analysis/agent.py",
+      "type": "module"
+    },
+    {
+      "source": "__init__.py",
+      "destination": "contract_analysis/__init__.py",
+      "type": "init_file"
+    }
+  ],
+  "target_directory_key": "agents",
+  "python_dependencies": [
+    "mirascope>=2.0.0",
+    "pydantic>=2.0.0",
+    "lilypad>=0.1.0"
+  ],
+  "registry_dependencies": [],
+  "environment_variables": [
+    {
+      "name": "OPENAI_API_KEY",
+      "description": "OpenAI API key for GPT models",
+      "required": false
+    },
+    {
+      "name": "ANTHROPIC_API_KEY",
+      "description": "Anthropic API key for Claude models",
+      "required": false
+    }
+  ],
+  "example_usage": "```python\nimport asyncio\nfrom contract_analysis import (\n    analyze_contract,\n    quick_risk_check,\n    extract_obligations_only\n)\n\nasync def main():\n    contract_text = \"\"\"\n    EMPLOYMENT AGREEMENT\n    \n    This Agreement is made on January 1, 2024 between Acme Corp and John Doe.\n    \n    1. Term: Employment shall commence on January 15, 2024 and continue for 2 years.\n    2. Compensation: Employee shall receive $120,000 annually.\n    3. Termination: Either party may terminate with 30 days notice.\n    4. Non-Compete: Employee agrees not to work for competitors for 1 year.\n    5. Confidentiality: Employee shall not disclose confidential information.\n    \"\"\"\n    \n    # Full contract analysis\n    result = await analyze_contract(\n        contract_text=contract_text,\n        analysis_focus=['risks', 'obligations', 'key_terms'],\n        include_recommendations=True\n    )\n    \n    print(f\"Contract Type: {result.contract_type}\")\n    print(f\"Parties: {', '.join(result.parties)}\")\n    print(f\"Overall Assessment: {result.overall_assessment}\")\n    print(f\"\\nSummary:\\n{result.summary}\")\n    \n    print(f\"\\n--- Key Terms ({len(result.key_terms)}) ---\")\n    for term in result.key_terms:\n        print(f\"  {term.clause_type} ({term.importance}): {term.explanation}\")\n    \n    print(f\"\\n--- Risks ({len(result.risks)}) ---\")\n    for risk in result.risks:\n        print(f\"  [{risk.severity}] {risk.risk_type}: {risk.description}\")\n        print(f\"    Mitigation: {risk.mitigation_suggestion}\")\n    \n    print(f\"\\n--- Obligations ({len(result.obligations)}) ---\")\n    for obligation in result.obligations:\n        print(f\"  {obligation.party}: {obligation.description}\")\n    \n    print(f\"\\n--- Recommendations ---\")\n    for rec in result.recommendations:\n        print(f\"  - {rec}\")\n    \n    # Quick risk check\n    print(\"\\n=== Quick Risk Check ===\")\n    risk_check = await quick_risk_check(contract_text)\n    print(f\"Overall Risk: {risk_check['overall_risk']}\")\n    print(f\"Risk Count: {risk_check['risk_count']}\")\n    if risk_check['critical_risks']:\n        print(f\"Critical Risks: {risk_check['critical_risks']}\")\n    \n    # Extract obligations only\n    print(\"\\n=== Obligations Only ===\")\n    obligations = await extract_obligations_only(contract_text)\n    for ob in obligations:\n        print(f\"  {ob['party']}: {ob['description']}\")\n\nif __name__ == \"__main__\":\n    asyncio.run(main())\n```",
+  "post_add_instructions": "This agent analyzes legal contracts to identify risks, obligations, and key terms. It provides comprehensive contract review including clause categorization, risk assessment with severity ratings, obligation extraction, and actionable recommendations. Use analysis_focus to target specific areas like 'risks', 'liabilities', 'payments', or 'termination'. The agent supports multiple contract types including employment agreements, software licenses, service contracts, NDAs, and more. Set your preferred LLM provider's API key (OpenAI, Anthropic, etc.).",
+  "tags": [
+    "legal",
+    "contract",
+    "risk_assessment",
+    "compliance",
+    "agent",
+    "mirascope",
+    "document_analysis",
+    "lilypad"
+  ],
+  "supports_lilypad": true,
+  "template_variables": {
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "include_recommendations": true
+  },
+  "mcp_compatible": false,
+  "mcp_entrypoint": ""
+}

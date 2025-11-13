@@ -1,0 +1,56 @@
+{
+  "$schema": "https://sygaldry.ai/schemas/component.json",
+  "name": "task_prioritization_agent",
+  "version": "0.1.0",
+  "description": "Task prioritization agent using Eisenhower matrix to assess urgency, importance, effort, and impact. Provides optimal task ordering, time allocation, and strategic recommendations for maximum productivity.",
+  "type": "agent",
+  "authors": [
+    {
+      "name": "Sygaldry Project",
+      "email": "info@sygaldry.ai"
+    }
+  ],
+  "license": "MIT",
+  "repository_url": "https://github.com/greyhaven-ai/sygaldry",
+  "mirascope_version_min": "2.0.0-alpha.1",
+  "files_to_copy": [
+    {
+      "source": "agent.py",
+      "destination": "agent.py",
+      "type": "module"
+    },
+    {
+      "source": "__init__.py",
+      "destination": "__init__.py",
+      "type": "init_file"
+    }
+  ],
+  "target_directory_key": "agents",
+  "python_dependencies": [
+    "mirascope>=2.0.0-alpha.1",
+    "pydantic>=2.0.0",
+    "asyncio"
+  ],
+  "registry_dependencies": [],
+  "environment_variables": [
+    {
+      "name": "OPENAI_API_KEY",
+      "description": "OpenAI API key for LLM calls",
+      "required": true
+    }
+  ],
+  "example_usage": "```python\nfrom task_prioritization import task_prioritization_agent, task_prioritization_agent_stream\n\n# Example 1: Prioritize daily tasks\nresult = await task_prioritization_agent(\n    tasks=[\n        \"Fix critical production bug affecting 20% of users\",\n        \"Write Q4 strategy document for leadership review\",\n        \"Review 5 pull requests from team members\",\n        \"Attend daily standup meeting (15 min)\",\n        \"Update API documentation\",\n        \"Research new database optimization techniques\",\n        \"Respond to Slack messages\",\n        \"Plan team offsite event\"\n    ],\n    context=\"Software engineering team lead, product launch scheduled for next week\",\n    goals=\"Ensure stable product launch, maintain team velocity, strategic planning for Q4\",\n    available_hours=8.0\n)\n\nprint(f\"Recommended Strategy: {result.strategy.strategy_name}\")\nprint(f\"Quick Wins: {len(result.quick_wins)} tasks\")\nprint(f\"\\nPriority Order:\")\nfor i, task_id in enumerate(result.prioritized_order[:5], 1):\n    task = next(ta for ta in result.task_analyses if ta.task_id == task_id)\n    print(f\"{i}. {task.task_description} ({task.priority.value})\")\n\n# Example 2: Stream prioritization for project tasks\nasync for update in task_prioritization_agent_stream(\n    tasks=[\n        \"Complete client proposal\",\n        \"Update project timeline\",\n        \"Review budget allocation\",\n        \"Schedule team meetings\",\n        \"Respond to client emails\"\n    ],\n    context=\"Project manager with tight deadline\",\n    goals=\"Deliver proposal by Friday, maintain client relationship\",\n    available_hours=6.0,\n    constraints=\"Must attend mandatory all-hands meeting 2-3pm\"\n):\n    print(update, end='')\n\n# Example 3: Prioritize with specific constraints\nresult = await task_prioritization_agent(\n    tasks=[\n        \"Prepare presentation for board meeting\",\n        \"Interview 3 candidates for senior role\",\n        \"Approve department budgets\",\n        \"One-on-one meetings with direct reports\",\n        \"Strategic planning session prep\",\n        \"Review quarterly OKRs\"\n    ],\n    context=\"Executive leader, board meeting in 2 days\",\n    goals=\"Successful board meeting, hire top talent, maintain team morale\",\n    available_hours=10.0,\n    constraints=\"Board meeting Wednesday 9am, cannot reschedule interviews\"\n)\n\n# Access detailed task analysis\nfor task in result.task_analyses:\n    if task.priority == TaskPriority.CRITICAL:\n        print(f\"\\nCRITICAL: {task.task_description}\")\n        print(f\"Urgency: {task.urgency_score:.2f} | Importance: {task.importance_score:.2f}\")\n        print(f\"Quadrant: {task.eisenhower_quadrant.value}\")\n        print(f\"Estimated Duration: {task.estimated_duration}\")\n        print(f\"Impact: {', '.join(task.expected_impact[:2])}\")\n\n# View time allocation recommendations\nprint(\"\\n=== Time Allocation ===\")\nfor block in result.time_allocation:\n    print(f\"\\n{block.time_slot} ({block.duration})\")\n    print(f\"Energy: {block.energy_level_required} | Focus: {block.focus_type}\")\n    print(f\"Tasks: {len(block.task_ids)}\")\n    print(f\"Rationale: {block.rationale}\")\n```",
+  "post_add_instructions": "The Task Prioritization Agent helps you organize your workload using the Eisenhower Matrix. It assesses urgency, importance, effort, and impact for each task, then provides optimal ordering and time allocation recommendations. Configure your OpenAI API key and provide clear task descriptions for best results.",
+  "tags": [
+    "task-management",
+    "prioritization",
+    "productivity",
+    "eisenhower-matrix",
+    "time-management",
+    "planning"
+  ],
+  "supports_lilypad": true,
+  "template_variables": {},
+  "mcp_compatible": false,
+  "mcp_entrypoint": ""
+}

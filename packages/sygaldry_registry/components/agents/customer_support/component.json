@@ -1,0 +1,29 @@
+{
+  "$schema": "https://sygaldry.ai/schemas/component.json",
+  "name": "customer_support_agent",
+  "version": "0.1.0",
+  "description": "Intelligent customer support ticket analysis with classification, sentiment detection, urgency assessment, and response suggestions. Extracts key information, detects customer emotions, and provides actionable recommendations for support teams.",
+  "type": "agent",
+  "authors": [{"name": "Sygaldry Project", "email": "info@sygaldry.ai"}],
+  "license": "MIT",
+  "repository_url": "https://github.com/greyhaven-ai/sygaldry",
+  "mirascope_version_min": "2.0.0",
+  "files_to_copy": [
+    {"source": "agent.py", "destination": "customer_support/agent.py", "type": "module"},
+    {"source": "__init__.py", "destination": "customer_support/__init__.py", "type": "init_file"}
+  ],
+  "target_directory_key": "agents",
+  "python_dependencies": ["mirascope>=2.0.0", "pydantic>=2.0.0", "lilypad>=0.1.0"],
+  "registry_dependencies": [],
+  "environment_variables": [
+    {"name": "OPENAI_API_KEY", "description": "OpenAI API key for GPT models", "required": false},
+    {"name": "ANTHROPIC_API_KEY", "description": "Anthropic API key for Claude models", "required": false}
+  ],
+  "example_usage": "```python\nimport asyncio\nfrom customer_support import analyze_support_ticket\n\nasync def main():\n    result = await analyze_support_ticket(\n        message=\"I've been trying to log in for 3 hours and keep getting error 403. This is unacceptable!\",\n        analysis_depth=\"detailed\"\n    )\n    print(f\"Category: {result.category.primary_category}\")\n    print(f\"Urgency: {result.urgency.urgency_level}\")\n    print(f\"Sentiment: {result.sentiment.overall_sentiment}\")\n    print(f\"\\nSuggested Response:\\n{result.response_suggestion.suggested_response}\")\n\nasyncio.run(main())\n```",
+  "post_add_instructions": "This agent analyzes customer support tickets with comprehensive classification, urgency assessment, sentiment detection, and response suggestions. Use analysis_depth='basic' for quick triage, 'detailed' for standard analysis, or 'comprehensive' for in-depth insights. The agent can classify tickets, detect urgency, analyze sentiment, extract key information, and suggest appropriate responses with escalation recommendations.",
+  "tags": ["customer_support", "ticket_analysis", "sentiment", "classification", "urgency", "agent", "mirascope", "lilypad"],
+  "supports_lilypad": true,
+  "template_variables": {"provider": "openai", "model": "gpt-4o-mini"},
+  "mcp_compatible": false,
+  "mcp_entrypoint": ""
+}
