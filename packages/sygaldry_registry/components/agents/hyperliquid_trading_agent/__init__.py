@@ -53,6 +53,10 @@ from .self_reflection import (
     StrategyAdaptation,
     EnvironmentContext,
 )
+from .terminal_interface import (
+    TerminalInterface,
+    run_terminal_interface,
+)
 
 __all__ = [
     # Agent
@@ -77,6 +81,9 @@ __all__ = [
     "PerformanceReview",
     "StrategyAdaptation",
     "EnvironmentContext",
+    # Terminal Interface
+    "TerminalInterface",
+    "run_terminal_interface",
     # Strategies
     "StrategyType",
     "TradingStrategy",

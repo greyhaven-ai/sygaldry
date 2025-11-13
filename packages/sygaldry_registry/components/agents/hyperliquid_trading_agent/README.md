@@ -736,3 +736,119 @@ async def supervised_autonomous_trading():
 
 This makes the agent much more powerful - it's not just autonomous, it's **collaborative**!
 
+
+## 🖥️ Terminal Interface
+
+For the easiest interaction, use the **terminal interface**:
+
+```bash
+python examples/hyperliquid_terminal_trading.py
+```
+
+This gives you an interactive command-line interface:
+
+```
+==================================================================
+🤖 Hyperliquid Trading Agent - Interactive Terminal
+==================================================================
+
+Type 'help' for available commands, 'exit' to quit
+
+agent> help
+
+📋 Available Commands:
+  Trading Control:
+    pause              - Pause trading
+    resume             - Resume trading
+    stop               - Stop trading and exit
+
+  Position Management:
+    close all          - Close all positions
+    close <COIN>       - Close specific position
+    positions          - View open positions
+
+  Analysis:
+    analyze <COIN>     - Analyze a market
+    reflect            - Request self-reflection
+    status             - Show agent status
+    performance        - Show performance metrics
+
+  Configuration:
+    risk <PARAM>=<VAL> - Adjust risk parameter
+    strategy <TYPE>    - Change strategy type
+    markets <COINS>    - Update markets
+
+  Feedback:
+    feedback <MSG>     - Provide feedback to agent
+    approve <ID>       - Approve pending trade
+    reject <ID>        - Reject pending trade
+
+  Utility:
+    history            - View message history
+    clear              - Clear screen
+    help               - Show this help
+    exit               - Exit terminal
+
+agent> status
+
+📊 Agent Status:
+  Running: 🟢 Yes
+  Paused: ▶️  No
+  Strategy: Trend Following
+  Open Positions: 2
+  Total P&L: $125.50
+  Daily P&L: $45.20
+
+agent> analyze BTC
+
+🔍 Analyzing BTC...
+
+BTC Analysis:
+Trend: bullish (strong)
+Recommendation: buy
+Confidence: 85%
+
+The market is showing strong bullish momentum with increasing volume...
+
+agent> feedback Great job on that last trade! Keep it up.
+
+💬 Sending feedback...
+✓ Thank you for the feedback. I'll incorporate this into my decision making.
+
+agent> pause
+
+⏸️  Pausing trading...
+✓ Trading paused. Send RESUME_TRADING to continue.
+
+agent> exit
+
+👋 Exiting terminal...
+```
+
+### Terminal vs Programmatic
+
+**Terminal Mode** (Easiest):
+```bash
+# Just run the script and type commands
+python examples/hyperliquid_terminal_trading.py
+```
+
+**Programmatic Mode** (More Control):
+```python
+# Write Python code to interact
+agent = InteractiveHyperliquidAgent(...)
+await agent.controller.pause_trading()
+```
+
+Both use the same underlying system, so choose what works best for you!
+
+### Demo Mode
+
+Try the terminal without actual trading:
+
+```bash
+python examples/hyperliquid_terminal_trading.py --demo
+```
+
+This lets you explore the terminal interface without needing API keys.
+
