@@ -2,7 +2,7 @@
   "$schema": "https://sygaldry.ai/schemas/component.json",
   "name": "hyperliquid-trading-agent",
   "version": "0.1.0",
-  "description": "Autonomous trading agent for Hyperliquid DEX with AI-powered strategy development, comprehensive risk management, and performance tracking. Supports both autonomous and guided trading modes.",
+  "description": "Autonomous trading agent for Hyperliquid DEX with AI-powered strategy development, comprehensive risk management, and performance tracking. Features interactive control, real-time communication, self-reflection, terminal interface, and optional MCP integration for enhanced market research. Supports autonomous, guided, and interactive trading modes.",
   "type": "agent",
   "authors": [
     {
@@ -35,6 +35,31 @@
       "type": "module"
     },
     {
+      "source": "interactive_agent.py",
+      "destination": "interactive_agent.py",
+      "type": "module"
+    },
+    {
+      "source": "agent_control.py",
+      "destination": "agent_control.py",
+      "type": "module"
+    },
+    {
+      "source": "self_reflection.py",
+      "destination": "self_reflection.py",
+      "type": "module"
+    },
+    {
+      "source": "terminal_interface.py",
+      "destination": "terminal_interface.py",
+      "type": "module"
+    },
+    {
+      "source": "mcp_client.py",
+      "destination": "mcp_client.py",
+      "type": "module"
+    },
+    {
       "source": "__init__.py",
       "destination": "__init__.py",
       "type": "init_file"
@@ -44,6 +69,7 @@
   "python_dependencies": [
     "mirascope>=2.0.0a1",
     "pydantic>=2.0.0",
+    "httpx>=0.27.0",
     "hyperliquid-python-sdk>=0.2.0",
     "sqlalchemy>=2.0.0"
   ],
@@ -79,10 +105,16 @@
       "description": "Use testnet (default: true for safety)",
       "required": false,
       "default": "true"
+    },
+    {
+      "name": "EXA_API_KEY",
+      "description": "Exa API key for MCP-enhanced market research (optional, enables real-time web search and news)",
+      "required": false,
+      "sensitive": true
     }
   ],
   "example_usage": "```python\nimport asyncio\nfrom sygaldry_registry.agents.hyperliquid_trading_agent import (\n    HyperliquidTradingAgent,\n    RiskParams,\n    trade_autonomous,\n    trade_with_strategy,\n    get_trend_following_strategy,\n)\n\nasync def main():\n    # Example 1: Autonomous Trading\n    # The agent analyzes markets and develops its own strategy\n    risk_params = RiskParams(\n        max_position_size_pct=0.2,      # 20% max per position\n        max_daily_loss_pct=0.05,        # 5% daily loss limit\n        require_approval_above_usd=100, # Approve trades > $100\n        circuit_breaker_enabled=True,   # Auto-stop on large losses\n    )\n\n    result = await trade_autonomous(\n        starting_capital=1000.0,\n        markets=[\"BTC\", \"ETH\", \"SOL\"],\n        risk_params=risk_params,\n        duration_hours=24,\n        testnet=True,  # Always start with testnet!\n    )\n\n    print(f\"Total P&L: ${result['total_pnl']:.2f} ({result['total_pnl_pct']:.2f}%)\")\n    print(f\"Win Rate: {result['metrics']['win_rate']:.1f}%\")\n\n    # Example 2: Guided Strategy Trading\n    # Human provides strategy, agent executes with risk management\n    strategy = get_trend_following_strategy(\n        markets=[\"BTC\"],\n        risk_per_trade=0.02,  # 2% risk per trade\n    )\n\n    result = await trade_with_strategy(\n        starting_capital=1000.0,\n        strategy=strategy,\n        risk_params=risk_params,\n        testnet=True,\n    )\n\n    # Example 3: Custom Strategy\n    from sygaldry_registry.agents.hyperliquid_trading_agent import TradingStrategy, StrategyType\n\n    custom_strategy = TradingStrategy(\n        type=StrategyType.CUSTOM,\n        name=\"My Custom Strategy\",\n        description=\"Scalping strategy on ETH\",\n        markets=[\"ETH\"],\n        entry_rules=\"Buy on RSI < 30 with volume spike\",\n        exit_rules=\"Sell on RSI > 70 or 1% profit\",\n        risk_per_trade=0.01,\n        max_positions=2,\n    )\n\n    # Example 4: Direct Agent Usage with Analysis\n    agent = HyperliquidTradingAgent(\n        starting_capital=1000.0,\n        risk_params=risk_params,\n        testnet=True,\n    )\n\n    # Analyze a market\n    analysis = await agent.analyze_market(\"BTC\")\n    print(f\"Trend: {analysis.trend}\")\n    print(f\"Recommendation: {analysis.recommendation}\")\n    print(f\"Confidence: {analysis.confidence:.2f}\")\n\n    # Develop autonomous strategy\n    strategy = await agent.develop_strategy(\n        markets=[\"BTC\", \"ETH\"],\n        risk_tolerance=\"moderate\",\n        time_horizon=\"medium\",\n    )\n    print(f\"Developed Strategy: {strategy.name}\")\n    print(f\"Type: {strategy.type}\")\n\nif __name__ == \"__main__\":\n    asyncio.run(main())\n```",
-  "post_add_instructions": "✅ Hyperliquid Trading Agent installed successfully!\n\n🔐 Required Environment Variables:\n1. OPENROUTER_API_KEY - Get from https://openrouter.ai/\n2. HYPERLIQUID_WALLET_ADDRESS - Your wallet address\n3. HYPERLIQUID_API_SECRET - API key from https://app.hyperliquid.xyz/API\n4. HYPERLIQUID_USE_TESTNET=true (recommended for testing)\n\n⚠️  IMPORTANT SAFETY NOTES:\n1. Always start with testnet=True to test safely\n2. The agent includes multiple safety features:\n   - Position size limits\n   - Daily loss limits (circuit breaker)\n   - Approval requirements for large trades\n   - Stop losses and take profits\n   - Risk checks before every trade\n\n3. Review risk parameters carefully before live trading\n4. Monitor the agent's performance regularly\n5. Start with small amounts when moving to mainnet\n\n🎯 Available Modes:\n- **Autonomous**: Agent analyzes markets and develops its own strategy\n- **Guided**: Execute your predefined strategy with AI assistance\n- **Hybrid**: Agent optimizes your base strategy\n\n📊 Features:\n- AI-powered market analysis using OpenRouter\n- Multiple strategy types (trend following, mean reversion, etc.)\n- Comprehensive risk management\n- SQLite-based performance tracking\n- Trade history and analytics\n- Real-time position monitoring\n\n📚 Strategy Types Available:\n- Trend Following\n- Mean Reversion\n- Funding Arbitrage\n- Breakout Trading\n- Momentum Trading\n- Grid Trading\n- Custom Strategies\n\n🔍 Performance Tracking:\nThe agent automatically tracks:\n- All trades with entry/exit prices\n- P&L per trade and overall\n- Win rate and profit factor\n- Risk metrics and drawdowns\n- Performance snapshots over time\n\nDatabase: hyperliquid_trading_state.db (created automatically)\n\nFor questions and support, visit: https://sygaldry.ai/docs/agents/hyperliquid-trading",
+  "post_add_instructions": "✅ Hyperliquid Trading Agent installed successfully!\n\n🔐 Required Environment Variables:\n1. OPENROUTER_API_KEY - Get from https://openrouter.ai/\n2. HYPERLIQUID_WALLET_ADDRESS - Your wallet address\n3. HYPERLIQUID_API_SECRET - API key from https://app.hyperliquid.xyz/API\n4. HYPERLIQUID_USE_TESTNET=true (recommended for testing)\n5. EXA_API_KEY - Optional, for MCP-enhanced market research (https://exa.ai)\n\n⚠️  IMPORTANT SAFETY NOTES:\n1. Always start with testnet=True to test safely\n2. The agent includes multiple safety features:\n   - Position size limits\n   - Daily loss limits (circuit breaker)\n   - Approval requirements for large trades\n   - Stop losses and take profits\n   - Risk checks before every trade\n\n3. Review risk parameters carefully before live trading\n4. Monitor the agent's performance regularly\n5. Start with small amounts when moving to mainnet\n\n🎯 Available Modes:\n- **Autonomous**: Agent analyzes markets and develops its own strategy\n- **Guided**: Execute your predefined strategy with AI assistance\n- **Interactive**: Real-time communication and strategy adjustments\n- **Terminal**: Command-line interface for direct agent control\n\n📊 Core Features:\n- AI-powered market analysis using OpenRouter\n- Multiple strategy types (trend following, mean reversion, etc.)\n- Comprehensive risk management\n- SQLite-based performance tracking\n- Trade history and analytics\n- Real-time position monitoring\n\n🤖 Advanced Features:\n- **Interactive Control**: Send commands to adjust strategy mid-execution\n- **Self-Reflection**: Agent reviews performance and adapts strategies\n- **Terminal Interface**: CLI for pausing, analyzing, and providing feedback\n- **MCP Integration**: Optional Exa MCP for real-time web search and news\n- **Command Queue**: Real-time communication with running agent\n- **Feedback System**: Provide guidance that influences future decisions\n\n🔍 MCP-Enhanced Research (Optional):\nWith EXA_API_KEY set and enable_mcp=True:\n- Real-time web search for market news\n- News sentiment analysis before trades\n- Token/project fundamental research\n- Company research and domain analysis\n- Graceful fallback when MCP unavailable\n\n📚 Strategy Types Available:\n- Trend Following\n- Mean Reversion\n- Funding Arbitrage\n- Breakout Trading\n- Momentum Trading\n- Grid Trading\n- Custom Strategies\n\n🔍 Performance Tracking:\nThe agent automatically tracks:\n- All trades with entry/exit prices\n- P&L per trade and overall\n- Win rate and profit factor\n- Risk metrics and drawdowns\n- Performance snapshots over time\n- Self-reflection insights\n- Human feedback history\n\nDatabase: hyperliquid_trading_state.db (created automatically)\n\n💬 Interactive Usage:\nfrom hyperliquid_trading_agent import InteractiveHyperliquidAgent\n\nagent = InteractiveHyperliquidAgent(\n    starting_capital=1000.0,\n    enable_mcp=True,  # Enable MCP research\n    mcp_api_key=os.getenv(\"EXA_API_KEY\")\n)\n\n# Run with terminal interface\npython examples/hyperliquid_terminal_trading.py\n\n# Run with MCP enhancement\npython examples/hyperliquid_mcp_trading.py\n\nFor questions and support, visit: https://sygaldry.ai/docs/agents/hyperliquid-trading",
   "tags": [
     "trading",
     "hyperliquid",
@@ -96,6 +128,6 @@
   ],
   "supports_lilypad": false,
   "template_variables": null,
-  "mcp_compatible": false,
-  "mcp_entrypoint": ""
+  "mcp_compatible": true,
+  "mcp_entrypoint": "https://mcp.exa.ai/mcp"
 }
