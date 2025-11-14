@@ -1,0 +1,25 @@
+{
+  "$schema": "https://sygaldry.ai/schemas/component.json",
+  "name": "sec_edgar",
+  "version": "0.1.0",
+  "description": "SEC EDGAR tool for accessing SEC filings and financial data via the SEC API. Search companies, retrieve 10-K/10-Q/8-K filings, and parse financial statements. Integrates with financial analysis, contract review, and market intelligence agents.",
+  "type": "tool",
+  "authors": [{"name": "Sygaldry Project", "email": "info@sygaldry.ai"}],
+  "license": "MIT",
+  "repository_url": "https://github.com/greyhaven-ai/sygaldry",
+  "files_to_copy": [
+    {"source": "tool.py", "destination": "sec_edgar/tool.py", "type": "module"},
+    {"source": "__init__.py", "destination": "sec_edgar/__init__.py", "type": "init_file"}
+  ],
+  "target_directory_key": "tools",
+  "python_dependencies": ["httpx>=0.27.0", "pydantic>=2.0.0"],
+  "registry_dependencies": [],
+  "environment_variables": [],
+  "example_usage": "```python\nfrom sec_edgar import search_company, get_company_filings, parse_financial_data\n\n# Search for a company\ncompanies = search_company(\"AAPL\")\ncompany = companies[0]\nprint(f\"{company.name}: CIK {company.cik}\")\n\n# Get recent 10-K filings\nfilings = get_company_filings(\n    cik=company.cik,\n    filing_type=\"10-K\",\n    max_results=3\n)\n\nfor filing in filings:\n    print(f\"{filing.filing_type} filed {filing.filing_date}\")\n    print(f\"URL: {filing.file_url}\")\n```",
+  "post_add_instructions": "No API key required. The SEC API is free and public. Please be respectful of rate limits and use appropriate User-Agent headers (automatically handled by this tool).",
+  "tags": ["sec", "edgar", "filings", "financial-data", "10-k", "10-q", "8-k", "tool", "api"],
+  "supports_lilypad": false,
+  "template_variables": {},
+  "mcp_compatible": false,
+  "mcp_entrypoint": ""
+}

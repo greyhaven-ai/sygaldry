@@ -1,0 +1,31 @@
+{
+  "$schema": "https://sygaldry.ai/schemas/component.json",
+  "name": "github_issues",
+  "version": "0.1.0",
+  "description": "GitHub Issues management tool for searching, creating, and updating issues via the GitHub REST API. Integrates with bug triage, code review, and task prioritization agents.",
+  "type": "tool",
+  "authors": [{"name": "Sygaldry Project", "email": "info@sygaldry.ai"}],
+  "license": "MIT",
+  "repository_url": "https://github.com/greyhaven-ai/sygaldry",
+  "files_to_copy": [
+    {"source": "tool.py", "destination": "github_issues/tool.py", "type": "module"},
+    {"source": "__init__.py", "destination": "github_issues/__init__.py", "type": "init_file"}
+  ],
+  "target_directory_key": "tools",
+  "python_dependencies": ["httpx>=0.27.0", "pydantic>=2.0.0"],
+  "registry_dependencies": [],
+  "environment_variables": [
+    {
+      "name": "GITHUB_TOKEN",
+      "description": "GitHub personal access token for API authentication",
+      "required": false
+    }
+  ],
+  "example_usage": "```python\nfrom github_issues import search_issues, get_issue, create_issue\n\n# Search for open bugs\nissues = search_issues(\n    repo=\"facebook/react\",\n    query=\"is:open label:bug\",\n    max_results=10\n)\n\n# Get specific issue\nissue = get_issue(\"facebook/react\", 12345)\nprint(f\"Title: {issue.title}\")\n\n# Create new issue\nnew_issue = create_issue(\n    repo=\"myorg/myrepo\",\n    title=\"Bug: Login fails\",\n    body=\"Description...\",\n    labels=[\"bug\", \"priority-high\"]\n)\n```",
+  "post_add_instructions": "Set GITHUB_TOKEN environment variable with your personal access token. Without a token, the tool is limited to 60 requests/hour. With authentication, you get 5000 requests/hour.",
+  "tags": ["github", "issues", "bug-tracking", "tool", "api"],
+  "supports_lilypad": false,
+  "template_variables": {},
+  "mcp_compatible": false,
+  "mcp_entrypoint": ""
+}
