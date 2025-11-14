@@ -476,7 +476,7 @@ Check individual project repositories for contribution guidelines and developmen
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+GNU Lesser General Public License v3.0 - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
