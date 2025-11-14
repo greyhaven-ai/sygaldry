@@ -1,0 +1,29 @@
+{
+  "$schema": "https://sygaldry.ai/schemas/component.json",
+  "name": "sentiment_analysis_agent",
+  "version": "0.1.0",
+  "description": "Multi-dimensional sentiment analysis with emotion detection, aspect-based analysis, and intensity assessment. Analyzes text for overall sentiment, polarity, subjectivity, emotions, and aspect-level sentiments.",
+  "type": "agent",
+  "authors": [{"name": "Sygaldry Project", "email": "info@sygaldry.ai"}],
+  "license": "MIT",
+  "repository_url": "https://github.com/greyhaven-ai/sygaldry",
+  "mirascope_version_min": "2.0.0",
+  "files_to_copy": [
+    {"source": "agent.py", "destination": "sentiment_analysis/agent.py", "type": "module"},
+    {"source": "__init__.py", "destination": "sentiment_analysis/__init__.py", "type": "init_file"}
+  ],
+  "target_directory_key": "agents",
+  "python_dependencies": ["mirascope>=2.0.0", "pydantic>=2.0.0", "lilypad>=0.1.0"],
+  "registry_dependencies": [],
+  "environment_variables": [
+    {"name": "OPENAI_API_KEY", "description": "OpenAI API key", "required": false},
+    {"name": "ANTHROPIC_API_KEY", "description": "Anthropic API key", "required": false}
+  ],
+  "example_usage": "```python\nimport asyncio\nfrom sentiment_analysis import analyze_sentiment\n\nasync def main():\n    result = await analyze_sentiment(\n        text=\"The product quality is excellent but the price is too high!\",\n        analysis_depth=\"detailed\"\n    )\n    print(f\"Sentiment: {result.overall_sentiment}\")\n    print(f\"Polarity: {result.polarity_score}\")\n    for aspect in result.aspects:\n        print(f\"{aspect.aspect}: {aspect.sentiment}\")\n\nasyncio.run(main())\n```",
+  "post_add_instructions": "This agent performs multi-dimensional sentiment analysis including overall sentiment, emotions, and aspect-level analysis. Use analysis_depth='basic' for quick classification, 'detailed' for emotions and aspects, or 'comprehensive' for full analysis.",
+  "tags": ["sentiment", "nlp", "emotions", "text_analysis", "agent", "mirascope", "lilypad"],
+  "supports_lilypad": true,
+  "template_variables": {"provider": "openai", "model": "gpt-4o-mini"},
+  "mcp_compatible": false,
+  "mcp_entrypoint": ""
+}

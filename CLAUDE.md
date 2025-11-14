@@ -67,6 +67,18 @@ This is a Sygaldry AI framework project that provides reusable components for LL
 - **dynamic_learning_path** (agent): Generates personalized, adaptive learning paths based on individual skills, goals, and learning preferences with comprehensive resource curation
 - **sourcing_assistant_agent** (agent): Sourcing assistant for finding suppliers, manufacturers, and solutions using Exa websets. Perfect for procurement, supply chain management, and technology sourcing.
 - **code_generation_execution_agent** (agent): Agent for generating and safely executing Python code. Analyzes code for safety, supports multiple safety levels, and provides recommendations for improvement. Features sandboxed execution environment and comprehensive code analysis.
+- **contract_analysis_agent** (agent): Legal document analysis agent for identifying risks, obligations, and key terms in contracts. Provides comprehensive contract review with clause categorization, risk assessment, and actionable recommendations.
+- **financial_statement_analyzer** (agent): Analyzes financial reports, calculates ratios, identifies trends, and provides investment insights with comprehensive ratio analysis and recommendations.
+- **sentiment_analysis_agent** (agent): Multi-dimensional sentiment analysis with emotion detection, aspect-based analysis, and intensity assessment. Analyzes text for overall sentiment, polarity, subjectivity, emotions, and aspect-level sentiments.
+- **code_review_agent** (agent): Automated code review with security vulnerability detection, best practice enforcement, and refactoring suggestions for clean, maintainable code.
+- **bug_triage_agent** (agent): Bug report analysis and classification agent. Analyzes bug reports, classifies severity and priority, identifies root causes, suggests reproduction steps, and recommends fixes.
+- **task_prioritization_agent** (agent): Task prioritization agent using Eisenhower matrix to assess urgency, importance, effort, and impact. Provides optimal task ordering, time allocation, and strategic recommendations for maximum productivity.
+- **content_moderation_agent** (agent): Content moderation agent that detects harmful content, hate speech, misinformation, and spam. Classifies severity and recommends moderation actions.
+- **customer_support_agent** (agent): Multi-turn conversational customer support agent with ticket classification, sentiment analysis, urgency detection, and response generation. Handles technical issues, billing, account access, and feature requests.
+- **github_issues** (tool): GitHub Issues management tool for searching, creating, and updating issues via the GitHub REST API. Integrates with bug triage, code review, and task prioritization agents.
+- **static_analysis_tool** (tool): Python static analysis tool running pylint, flake8, mypy, bandit, and semgrep. Provides code quality checks, type checking, and security vulnerability detection with structured results.
+- **sec_edgar** (tool): SEC EDGAR filing retrieval tool for accessing 10-K, 10-Q, and 8-K filings. Fetches company information, recent filings, and parses basic financial data from the SEC database.
+- **helpdesk_integration** (tool): Zendesk helpdesk integration tool for managing support tickets. Search, create, update tickets and comments via the Zendesk API v2.
 - **docx_search_tool** (tool): Microsoft Word document search and content extraction tool with advanced text search, regex support, and metadata extraction
 - **directory_search_tool** (tool): Advanced file system navigation and search tool with pattern matching, content search, and filtering capabilities
 - **sqlalchemy_db** (tool): SQLAlchemy ORM tool for advanced database operations and agent state management

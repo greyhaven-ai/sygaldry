@@ -1,0 +1,72 @@
+{
+  "$schema": "https://sygaldry.ai/schemas/component.json",
+  "name": "bug_triage_agent",
+  "version": "0.1.0",
+  "description": "Bug triage agent for analyzing and prioritizing bug reports. Classifies severity, priority, identifies affected components, analyzes root causes, and generates reproduction steps with actionable recommendations.",
+  "type": "agent",
+  "authors": [
+    {
+      "name": "Sygaldry Project",
+      "email": "info@sygaldry.ai"
+    }
+  ],
+  "license": "MIT",
+  "repository_url": "https://github.com/greyhaven-ai/sygaldry",
+  "mirascope_version_min": "2.0.0",
+  "files_to_copy": [
+    {
+      "source": "agent.py",
+      "destination": "bug_triage/agent.py",
+      "type": "module"
+    },
+    {
+      "source": "__init__.py",
+      "destination": "bug_triage/__init__.py",
+      "type": "init_file"
+    }
+  ],
+  "target_directory_key": "agents",
+  "python_dependencies": [
+    "mirascope>=2.0.0",
+    "pydantic>=2.0.0",
+    "lilypad>=0.1.0"
+  ],
+  "registry_dependencies": ["github_issues"],
+  "environment_variables": [
+    {
+      "name": "OPENAI_API_KEY",
+      "description": "OpenAI API key for GPT models",
+      "required": false
+    },
+    {
+      "name": "ANTHROPIC_API_KEY",
+      "description": "Anthropic API key for Claude models",
+      "required": false
+    },
+    {
+      "name": "GITHUB_TOKEN",
+      "description": "GitHub personal access token for searching issues (optional, enhances root cause analysis)",
+      "required": false
+    }
+  ],
+  "example_usage": "```python\nimport asyncio\nfrom bug_triage import (\n    triage_bug,\n    quick_severity_check,\n    get_reproduction_steps\n)\n\nasync def main():\n    bug_report = \"\"\"\n    Title: Login fails with 500 error when using Google OAuth\n    \n    Description:\n    Users are reporting they cannot log in using Google OAuth.\n    When they click the \"Sign in with Google\" button, they get redirected\n    to Google, authenticate successfully, but then get a 500 Internal Server Error\n    when redirected back to our app.\n    \n    Error in logs:\n    TypeError: Cannot read property 'email' of undefined\n    at /api/auth/google/callback:45\n    \n    Started happening after yesterday's deployment.\n    Affects approximately 30% of login attempts.\n    \"\"\"\n    \n    # Full bug triage\n    result = await triage_bug(\n        bug_report=bug_report,\n        context=\"Recent deployment included OAuth provider updates\",\n        include_recommendations=True\n    )\n    \n    print(f\"=== Bug Triage Results ===\")\n    print(f\"\\nSummary: {result.summary}\")\n    print(f\"\\nSeverity: {result.severity_classification.severity}\")\n    print(f\"Priority: {result.severity_classification.priority}\")\n    print(f\"Impact Scope: {result.severity_classification.impact_scope}\")\n    print(f\"\\nComponent: {result.component.component_name}\")\n    print(f\"Type: {result.component.component_type}\")\n    print(f\"Confidence: {result.component.confidence}\")\n    \n    print(f\"\\nRoot Cause: {result.root_cause.likely_cause}\")\n    print(f\"Category: {result.root_cause.cause_category}\")\n    print(f\"Confidence: {result.root_cause.confidence}\")\n    \n    print(f\"\\n--- Reproduction Steps ---\")\n    for i, step in enumerate(result.reproduction.steps, 1):\n        print(f\"{i}. {step}\")\n    print(f\"Reproducibility: {result.reproduction.reproducibility}\")\n    \n    print(f\"\\nRecommended Assignee: {result.recommended_assignee}\")\n    print(f\"Estimated Effort: {result.estimated_effort}\")\n    \n    print(f\"\\n--- Recommendations ---\")\n    for rec in result.recommendations:\n        print(f\"  - {rec}\")\n    \n    print(f\"\\nTags: {', '.join(result.tags)}\")\n    \n    # Quick severity check\n    print(\"\\n=== Quick Severity Check ===\")\n    severity_info = await quick_severity_check(bug_report)\n    print(f\"Severity: {severity_info['severity']}\")\n    print(f\"Priority: {severity_info['priority']}\")\n    print(f\"Component: {severity_info['component']}\")\n    print(f\"Impact: {severity_info['impact']}\")\n    \n    # Get reproduction steps only\n    print(\"\\n=== Reproduction Steps ===\")\n    repro = await get_reproduction_steps(bug_report)\n    print(f\"Reproducibility: {repro['reproducibility']}\")\n    for i, step in enumerate(repro['steps'], 1):\n        print(f\"{i}. {step}\")\n\nif __name__ == \"__main__\":\n    asyncio.run(main())\n```",
+  "post_add_instructions": "This agent analyzes bug reports to classify severity, priority, identify affected components, analyze root causes, and generate reproduction steps. It helps engineering teams triage bugs efficiently by providing structured analysis with actionable recommendations. Use context parameter to provide additional information like recent deployments or known issues. The agent supports multiple bug categories including logic errors, race conditions, security issues, and more. Set your preferred LLM provider's API key (OpenAI, Anthropic, etc.).",
+  "tags": [
+    "bug_triage",
+    "software_engineering",
+    "quality_assurance",
+    "issue_tracking",
+    "agent",
+    "mirascope",
+    "debugging",
+    "lilypad"
+  ],
+  "supports_lilypad": true,
+  "template_variables": {
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "include_recommendations": true
+  },
+  "mcp_compatible": false,
+  "mcp_entrypoint": ""
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://sygaldry.ai/schemas/component.json",
+  "name": "helpdesk_integration",
+  "version": "0.1.0",
+  "description": "Zendesk helpdesk integration tool for managing support tickets via the Zendesk REST API v2. Search, create, update tickets, manage comments and tags. Integrates with customer support, bug triage, and task prioritization agents.",
+  "type": "tool",
+  "authors": [{"name": "Sygaldry Project", "email": "info@sygaldry.ai"}],
+  "license": "MIT",
+  "repository_url": "https://github.com/greyhaven-ai/sygaldry",
+  "files_to_copy": [
+    {"source": "tool.py", "destination": "helpdesk_integration/tool.py", "type": "module"},
+    {"source": "__init__.py", "destination": "helpdesk_integration/__init__.py", "type": "init_file"}
+  ],
+  "target_directory_key": "tools",
+  "python_dependencies": ["httpx>=0.27.0", "pydantic>=2.0.0"],
+  "registry_dependencies": [],
+  "environment_variables": [
+    {
+      "name": "ZENDESK_SUBDOMAIN",
+      "description": "Zendesk subdomain (e.g., 'mycompany' for mycompany.zendesk.com)",
+      "required": true
+    },
+    {
+      "name": "ZENDESK_EMAIL",
+      "description": "Email address associated with your Zendesk account",
+      "required": true
+    },
+    {
+      "name": "ZENDESK_API_TOKEN",
+      "description": "Zendesk API token for authentication (generate in Admin > Channels > API)",
+      "required": true
+    }
+  ],
+  "example_usage": "```python\nfrom helpdesk_integration import search_tickets, get_ticket, create_ticket, update_ticket\n\n# Search for open high-priority tickets\ntickets = search_tickets(\n    query=\"login issue\",\n    status=\"open\",\n    priority=\"high\",\n    max_results=10\n)\n\n# Get specific ticket\nticket = get_ticket(12345)\nprint(f\"Subject: {ticket.subject}\")\nprint(f\"Status: {ticket.status}\")\n\n# Create new ticket\nnew_ticket = create_ticket(\n    subject=\"Cannot login to account\",\n    description=\"User reports unable to login after password reset\",\n    requester_email=\"user@example.com\",\n    priority=\"high\",\n    tags=[\"login\", \"authentication\"]\n)\n\n# Update ticket with comment\nupdate_ticket(\n    ticket_id=12345,\n    status=\"pending\",\n    comment=\"Waiting for more information\"\n)\n```",
+  "post_add_instructions": "Set the following environment variables:\n- ZENDESK_SUBDOMAIN: Your Zendesk subdomain (e.g., 'mycompany' for mycompany.zendesk.com)\n- ZENDESK_EMAIL: Your Zendesk account email\n- ZENDESK_API_TOKEN: Generate an API token in Zendesk Admin > Channels > API\n\nTo generate an API token:\n1. Log in to your Zendesk account as an admin\n2. Go to Admin > Channels > API\n3. Enable Token Access if not already enabled\n4. Click the '+' button to add a new API token\n5. Copy the token and set it as ZENDESK_API_TOKEN environment variable",
+  "tags": ["zendesk", "helpdesk", "support", "tickets", "customer-service", "tool", "api"],
+  "supports_lilypad": false,
+  "template_variables": {},
+  "mcp_compatible": false,
+  "mcp_entrypoint": ""
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://sygaldry.ai/schemas/component.json",
+  "name": "static_analysis",
+  "version": "0.1.0",
+  "description": "Python static analysis tool for comprehensive code quality and security scanning. Runs pylint, flake8, mypy, bandit, and semgrep to detect code issues, type errors, and security vulnerabilities.",
+  "type": "tool",
+  "authors": [{"name": "Sygaldry Project", "email": "info@sygaldry.ai"}],
+  "license": "MIT",
+  "repository_url": "https://github.com/greyhaven-ai/sygaldry",
+  "files_to_copy": [
+    {"source": "tool.py", "destination": "static_analysis/tool.py", "type": "module"},
+    {"source": "__init__.py", "destination": "static_analysis/__init__.py", "type": "init_file"}
+  ],
+  "target_directory_key": "tools",
+  "python_dependencies": ["pydantic>=2.0.0"],
+  "registry_dependencies": [],
+  "environment_variables": [],
+  "example_usage": "```python\nfrom static_analysis import analyze_code, run_pylint, run_bandit\n\n# Run all analysis tools\nresult = analyze_code(\"myproject/\")\nprint(f\"Total issues: {result.total_issues}\")\nprint(f\"Tools run: {', '.join(result.tools_run)}\")\n\n# Run specific tool\nissues = run_pylint(\"main.py\")\nfor issue in issues:\n    print(f\"{issue.severity}: {issue.message}\")\n\n# Security scan\nvulns = run_bandit(\"myproject/\")\nhigh_severity = [v for v in vulns if v.severity == \"high\"]\nprint(f\"High-severity vulnerabilities: {len(high_severity)}\")\n```",
+  "post_add_instructions": "Install static analysis tools:\npip install pylint flake8 mypy bandit\n\nOptional: pip install semgrep\n\nTools will be detected automatically. Missing tools will be skipped gracefully.",
+  "tags": ["static-analysis", "code-quality", "security", "linting", "type-checking", "tool"],
+  "supports_lilypad": false,
+  "template_variables": {},
+  "mcp_compatible": false,
+  "mcp_entrypoint": ""
+}

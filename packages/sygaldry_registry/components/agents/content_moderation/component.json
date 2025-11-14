@@ -1,0 +1,34 @@
+{
+  "$schema": "https://sygaldry.ai/schemas/component.json",
+  "name": "content_moderation_agent",
+  "version": "0.1.0",
+  "description": "Advanced content moderation agent for detecting harmful content, hate speech, misinformation, spam, and policy violations. Features multi-category detection, severity classification, contextual analysis, and action recommendations with support for multiple content types.",
+  "type": "agent",
+  "authors": [{"name": "Sygaldry Project", "email": "info@sygaldry.ai"}],
+  "license": "MIT",
+  "repository_url": "https://github.com/greyhaven-ai/sygaldry",
+  "mirascope_version_min": "2.0.0",
+  "files_to_copy": [
+    {"source": "agent.py", "destination": "content_moderation/agent.py", "type": "module"},
+    {"source": "__init__.py", "destination": "content_moderation/__init__.py", "type": "init_file"}
+  ],
+  "target_directory_key": "agents",
+  "python_dependencies": ["mirascope>=2.0.0", "pydantic>=2.0.0", "lilypad>=0.1.0"],
+  "registry_dependencies": [],
+  "environment_variables": [
+    {"name": "OPENAI_API_KEY", "description": "OpenAI API key for GPT models", "required": false},
+    {"name": "ANTHROPIC_API_KEY", "description": "Anthropic API key for Claude models", "required": false},
+    {"name": "GOOGLE_API_KEY", "description": "Google API key for Gemini models", "required": false}
+  ],
+  "example_usage": "```python\nimport asyncio\nfrom content_moderation import moderate_content, quick_moderate, check_safety\n\nasync def main():\n    # Full moderation with detailed analysis\n    result = await moderate_content(\n        content=\"Your content here\",\n        content_type=\"comment\",\n        sensitivity_level=\"high\"\n    )\n    print(f\"Verdict: {result.overall_verdict}\")\n    print(f\"Risk Score: {result.risk_score}\")\n    print(f\"Recommended Action: {result.recommended_action.action}\")\n    for violation in result.violations:\n        if violation.category != 'none':\n            print(f\"- {violation.category}: {violation.severity}\")\n    \n    # Quick safety check\n    is_safe = await check_safety(\"Hello, how are you?\")\n    print(f\"Safe: {is_safe}\")\n    \n    # Get violations only\n    violations = await detect_violations(\"Potentially harmful content\")\n    for v in violations:\n        print(f\"{v['category']}: {v['severity']} - {v['explanation']}\")\n\nasyncio.run(main())\n```",
+  "post_add_instructions": "This agent performs comprehensive content moderation with detection of hate speech, harassment, violence, sexual content, misinformation, spam, self-harm, illegal activity, profanity, and personal attacks. Use sensitivity_level to control strictness: 'low' (permissive), 'medium' (balanced), 'high' (strict), or 'maximum' (very strict). The agent considers contextual factors like sarcasm, educational value, and news reporting. Set your preferred LLM provider API key.",
+  "tags": ["content_moderation", "safety", "moderation", "hate_speech", "misinformation", "spam", "nlp", "agent", "mirascope", "lilypad", "trust_and_safety"],
+  "supports_lilypad": true,
+  "template_variables": {
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "sensitivity_level": "medium"
+  },
+  "mcp_compatible": false,
+  "mcp_entrypoint": ""
+}
