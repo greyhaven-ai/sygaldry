@@ -10,16 +10,16 @@ This extends the base trading agent with:
 from __future__ import annotations
 
 import asyncio
+from .agent import HyperliquidTradingAgent
+from .agent_control import AgentCommand, AgentController, AgentResponse, AgentStatus, CommandType
+from .risk_manager import RiskParams
+from .self_reflection import PerformanceReview, SelfReflectionEngine, StrategyAdaptation
+from .strategies import StrategyType, TradingStrategy, get_strategy_by_type
 from datetime import datetime, timedelta
 from typing import Any, Optional
-from .agent import HyperliquidTradingAgent
-from .agent_control import AgentController, AgentCommand, AgentResponse, CommandType, AgentStatus
-from .self_reflection import SelfReflectionEngine, PerformanceReview, StrategyAdaptation
-from .strategies import TradingStrategy, get_strategy_by_type, StrategyType
-from .risk_manager import RiskParams
 
 try:
-    from ...tools.hyperliquid_trading.tool import get_open_positions, check_account_balance
+    from ...tools.hyperliquid_trading.tool import check_account_balance, get_open_positions
 
     HYPERLIQUID_TOOLS_AVAILABLE = True
 except ImportError:
@@ -34,12 +34,12 @@ class InteractiveHyperliquidAgent(HyperliquidTradingAgent):
     def __init__(
         self,
         starting_capital: float,
-        risk_params: Optional[RiskParams] = None,
+        risk_params: RiskParams | None = None,
         db_path: str = "hyperliquid_trading_state.db",
         testnet: bool = True,
         reflection_interval_hours: int = 6,  # How often to self-reflect
         enable_mcp: bool = False,  # Enable Exa MCP for enhanced research
-        mcp_api_key: Optional[str] = None,  # Exa API key for MCP
+        mcp_api_key: str | None = None,  # Exa API key for MCP
     ):
         """Initialize interactive trading agent.
 
@@ -64,18 +64,18 @@ class InteractiveHyperliquidAgent(HyperliquidTradingAgent):
         self.mcp_client = None
         if enable_mcp:
             try:
-                from .mcp_client import ExaMCPClient
                 import os
+                from .mcp_client import ExaMCPClient
 
                 api_key = mcp_api_key or os.getenv("EXA_API_KEY")
                 if api_key:
                     self.mcp_client = ExaMCPClient(api_key=api_key)
-                    print(f"✓ MCP enabled for enhanced market research")
+                    print("✓ MCP enabled for enhanced market research")
                 else:
-                    print(f"⚠️  MCP requested but no API key found. Continuing without MCP.")
+                    print("⚠️  MCP requested but no API key found. Continuing without MCP.")
                     self.mcp_enabled = False
             except ImportError:
-                print(f"⚠️  MCP client not available. Install httpx to enable MCP support.")
+                print("⚠️  MCP client not available. Install httpx to enable MCP support.")
                 self.mcp_enabled = False
 
         # State
@@ -282,7 +282,7 @@ Recommendations:
         # Return whether to continue trading
         return not self.should_stop
 
-    async def _maybe_perform_reflection(self, current_strategy: TradingStrategy) -> Optional[StrategyAdaptation]:
+    async def _maybe_perform_reflection(self, current_strategy: TradingStrategy) -> StrategyAdaptation | None:
         """Maybe perform self-reflection if enough time has passed.
 
         Args:
@@ -300,7 +300,7 @@ Recommendations:
         if time_since_last < self.reflection_interval:
             return None  # Not time yet
 
-        print(f"\n🧠 Performing self-reflection...")
+        print("\n🧠 Performing self-reflection...")
 
         # Perform reflection
         capital = await self.get_current_capital()
@@ -315,7 +315,7 @@ Recommendations:
             recent_feedback=self.human_feedback,
         )
 
-        print(f"✅ Self-reflection complete:")
+        print("✅ Self-reflection complete:")
         print(f"   Win Rate: {review.win_rate:.1f}%")
         print(f"   Confidence: {review.confidence_level:.0%}")
         print(f"   Lessons: {len(review.lessons_learned)} identified")
@@ -344,7 +344,7 @@ Recommendations:
     async def run_interactive_trading(
         self,
         markets: list[str],
-        initial_strategy: Optional[TradingStrategy] = None,
+        initial_strategy: TradingStrategy | None = None,
         duration_hours: int = 24,
         check_interval_minutes: int = 15,
     ) -> dict[str, Any]:
@@ -369,13 +369,13 @@ Recommendations:
         self.controller.status.is_running = True
         self.controller.status.current_strategy = strategy.name
 
-        print(f"🤖 Interactive Trading Started")
+        print("🤖 Interactive Trading Started")
         print(f"Strategy: {strategy.name}")
         print(f"Markets: {', '.join(strategy.markets)}")
         print(f"Duration: {duration_hours}h, Check Interval: {check_interval_minutes}m")
         print(f"Reflection Interval: {self.reflection_interval.total_seconds() / 3600:.1f}h")
         print(f"Starting Capital: ${self.current_capital:.2f}")
-        print(f"\n💬 Send commands via controller.send_command() for real-time interaction")
+        print("\n💬 Send commands via controller.send_command() for real-time interaction")
 
         start_time = datetime.now()
         iterations = 0
@@ -400,7 +400,7 @@ Recommendations:
             # Maybe perform self-reflection
             adaptation = await self._maybe_perform_reflection(strategy)
             if adaptation and adaptation.should_change_strategy:
-                print(f"🔄 Adapting strategy based on reflection...")
+                print("🔄 Adapting strategy based on reflection...")
                 # Would implement strategy change here
                 # For now, just log it
                 print(f"   Recommendation: {adaptation.reason}")
@@ -443,38 +443,6 @@ Recommendations:
             "reflections_performed": len(self.reflection_engine.reflection_history),
             "feedback_received": len(self.human_feedback),
         }
-
-
-# Convenience function for interactive trading
-async def run_interactive_trading(
-    starting_capital: float,
-    markets: list[str],
-    risk_params: Optional[RiskParams] = None,
-    duration_hours: int = 24,
-    testnet: bool = True,
-) -> tuple[dict[str, Any], AgentController]:
-    """Start interactive trading session with communication capabilities.
-
-    Args:
-        starting_capital: Starting capital in USD
-        markets: Markets to trade
-        risk_params: Risk management parameters
-        duration_hours: Trading duration in hours
-        testnet: Use testnet (default: True)
-
-    Returns:
-        Tuple of (trading summary, controller for sending commands)
-    """
-    agent = InteractiveHyperliquidAgent(
-        starting_capital=starting_capital,
-        risk_params=risk_params,
-        testnet=testnet,
-    )
-
-    # Run trading in background, return controller for interaction
-    result = await agent.run_interactive_trading(markets=markets, duration_hours=duration_hours)
-
-    return result, agent.controller
 
     async def analyze_market_with_news(self, coin: str) -> Any:
         """Analyze market with real-time news research via MCP.
@@ -570,5 +538,37 @@ async def run_interactive_trading(
         # Close MCP client if active
         if self.mcp_client:
             await self.mcp_client.close()
+
+
+# Convenience function for interactive trading
+async def run_interactive_trading(
+    starting_capital: float,
+    markets: list[str],
+    risk_params: RiskParams | None = None,
+    duration_hours: int = 24,
+    testnet: bool = True,
+) -> tuple[dict[str, Any], AgentController]:
+    """Start interactive trading session with communication capabilities.
+
+    Args:
+        starting_capital: Starting capital in USD
+        markets: Markets to trade
+        risk_params: Risk management parameters
+        duration_hours: Trading duration in hours
+        testnet: Use testnet (default: True)
+
+    Returns:
+        Tuple of (trading summary, controller for sending commands)
+    """
+    agent = InteractiveHyperliquidAgent(
+        starting_capital=starting_capital,
+        risk_params=risk_params,
+        testnet=testnet,
+    )
+
+    # Run trading in background, return controller for interaction
+    result = await agent.run_interactive_trading(markets=markets, duration_hours=duration_hours)
+
+    return result, agent.controller
 
 
