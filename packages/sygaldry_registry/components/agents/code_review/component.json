@@ -2,7 +2,7 @@
   "$schema": "https://sygaldry.ai/schemas/component.json",
   "name": "code_review_agent",
   "version": "0.1.0",
-  "description": "Automated code review with security vulnerability detection, best practice enforcement, and refactoring suggestions for clean, maintainable code.",
+  "description": "Automated code review with static analysis integration, security vulnerability detection, best practice enforcement, and optional GitHub issue creation for findings.",
   "type": "agent",
   "authors": [{"name": "Sygaldry Project", "email": "info@sygaldry.ai"}],
   "license": "MIT",
@@ -14,11 +14,13 @@
   ],
   "target_directory_key": "agents",
   "python_dependencies": ["mirascope>=2.0.0", "pydantic>=2.0.0", "lilypad>=0.1.0"],
+  "registry_dependencies": ["static_analysis_tool", "github_issues"],
   "environment_variables": [
-    {"name": "OPENAI_API_KEY", "description": "OpenAI API key", "required": false}
+    {"name": "OPENAI_API_KEY", "description": "OpenAI API key", "required": false},
+    {"name": "GITHUB_TOKEN", "description": "GitHub personal access token for creating issues (optional)", "required": false}
   ],
   "example_usage": "```python\nfrom code_review import review_code\n\nresult = await review_code(\n    code='def process(data): return eval(data)',\n    language='python',\n    review_focus=['security', 'best_practices']\n)\nfor issue in result.issues:\n    print(f\"[{issue.severity}] {issue.description}\")\n```",
-  "post_add_instructions": "Reviews code for security vulnerabilities, performance issues, and best practices. Use review_focus to target specific areas.",
+  "post_add_instructions": "Reviews code for security vulnerabilities, performance issues, and best practices. Integrates with static_analysis_tool for automated Python code analysis (pylint, mypy, bandit). Set create_github_issues=True and provide a repo to automatically create GitHub issues for critical/high severity findings. Use review_focus to target specific areas.",
   "tags": ["code_review", "security", "development", "agent", "mirascope"],
   "supports_lilypad": true,
   "template_variables": {"provider": "openai", "model": "gpt-4o-mini"},

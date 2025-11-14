@@ -22,6 +22,16 @@ except ImportError:
         return decorator
     LILYPAD_AVAILABLE = False
 
+# Import GitHub Issues tool
+try:
+    from ...tools.github_issues.tool import search_issues, create_issue, get_issue
+    GITHUB_AVAILABLE = True
+except ImportError:
+    search_issues = None
+    create_issue = None
+    get_issue = None
+    GITHUB_AVAILABLE = False
+
 
 class ComponentIdentification(BaseModel):
     """Identification of affected component/module."""
@@ -197,14 +207,17 @@ Consider:
 - Common architectural patterns"""
 
 
-# Step 3: Analyze root cause
+# Step 3: Analyze root cause (with GitHub Issues search capability)
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=RootCauseAnalysis,
+    tools=[search_issues, get_issue] if GITHUB_AVAILABLE else [],
 )
-async def analyze_root_cause(bug_report: str, component_info: str, severity_info: str) -> str:
+async def analyze_root_cause(bug_report: str, component_info: str, severity_info: str, repo: Optional[str] = None) -> str:
     """Analyze potential root causes."""
+    repo_note = f"\n\nGitHub Repository: {repo}\nYou have access to search_issues() and get_issue() tools. Use them to find similar issues or related bugs in the repository." if repo else ""
+
     return f"""You are an expert software engineer analyzing root causes of bugs.
 
 Bug Report:
@@ -215,6 +228,7 @@ Component Information:
 
 Severity Information:
 {severity_info}
+{repo_note}
 
 Analyze the potential root cause of this bug:
 
@@ -293,6 +307,7 @@ async def triage_bug(
     bug_report: str,
     context: Optional[str] = None,
     codebase_structure: Optional[str] = None,
+    repo: Optional[str] = None,
     include_recommendations: bool = True,
     llm_provider: str = "openai",
     model: str = "gpt-4o-mini",
@@ -303,7 +318,7 @@ async def triage_bug(
     This agent performs comprehensive bug analysis including:
     - Severity and priority classification
     - Component/module identification
-    - Root cause analysis
+    - Root cause analysis with GitHub issue search (if repo provided)
     - Reproduction step generation
     - Effort estimation and recommendations
 
@@ -311,6 +326,7 @@ async def triage_bug(
         bug_report: The bug report text to analyze
         context: Optional additional context (product info, recent changes, etc.)
         codebase_structure: Optional codebase structure information
+        repo: Optional GitHub repository (format: "owner/repo") for searching similar issues
         include_recommendations: Whether to include fixing recommendations
         llm_provider: LLM provider to use
         model: Specific model to use
@@ -323,6 +339,7 @@ async def triage_bug(
         result = await triage_bug(
             bug_report="Users getting 500 error when logging in with Google OAuth",
             context="Recent deployment to production yesterday",
+            repo="myorg/myapp",  # Optional: enables GitHub issue search
             include_recommendations=True
         )
 
@@ -342,8 +359,8 @@ async def triage_bug(
     component_summary = f"Component: {component_identification.component_name} ({component_identification.component_type})"
     severity_summary = f"Severity: {severity_classification.severity}, Priority: {severity_classification.priority}"
 
-    # Step 3: Analyze root cause
-    root_cause_analysis = await analyze_root_cause(bug_report, component_summary, severity_summary)
+    # Step 3: Analyze root cause (with optional GitHub issue search)
+    root_cause_analysis = await analyze_root_cause(bug_report, component_summary, severity_summary, repo)
 
     # Step 4: Generate reproduction steps
     reproduction_steps = await generate_reproduction_steps(bug_report, component_summary)

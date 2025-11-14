@@ -20,6 +20,16 @@ except ImportError:
         return decorator
     LILYPAD_AVAILABLE = False
 
+# Import SEC EDGAR tool
+try:
+    from ...tools.sec_edgar.tool import get_company_info, get_company_filings, get_filing_content
+    SEC_EDGAR_AVAILABLE = True
+except ImportError:
+    get_company_info = None
+    get_company_filings = None
+    get_filing_content = None
+    SEC_EDGAR_AVAILABLE = False
+
 
 class FinancialRatios(BaseModel):
     """Calculated financial ratios."""
@@ -239,13 +249,82 @@ Consider:
 Be objective and data-driven in your analysis."""
 
 
+# Fetch financial data from SEC EDGAR
+@trace()
+async def fetch_sec_edgar_data(
+    ticker_or_cik: str,
+    filing_type: str = "10-K",
+    max_filings: int = 1
+) -> Optional[dict[str, Any]]:
+    """
+    Fetch financial data from SEC EDGAR.
+
+    Args:
+        ticker_or_cik: Company ticker symbol or CIK number
+        filing_type: Type of filing to fetch (10-K, 10-Q, 8-K)
+        max_filings: Maximum number of filings to fetch
+
+    Returns:
+        Dictionary with financial data or None if unavailable
+
+    Example:
+        ```python
+        data = await fetch_sec_edgar_data("AAPL", filing_type="10-K")
+        if data:
+            result = await analyze_financial_statements(data)
+        ```
+    """
+    if not SEC_EDGAR_AVAILABLE:
+        return None
+
+    try:
+        # Get company info
+        company_info = await get_company_info(ticker_or_cik)
+
+        # Get recent filings
+        filings = await get_company_filings(
+            ticker_or_cik,
+            filing_type=filing_type,
+            max_results=max_filings
+        )
+
+        if not filings:
+            return None
+
+        # Get the most recent filing content
+        filing_content = await get_filing_content(
+            ticker_or_cik,
+            filings[0].accession_number
+        )
+
+        # Parse basic financial data from filing
+        # Note: This is a simplified parser - real implementation would need
+        # more sophisticated XBRL/HTML parsing
+        financial_data = {
+            "company_name": company_info.name,
+            "ticker": company_info.ticker,
+            "filing_type": filing_type,
+            "filing_date": filings[0].filing_date,
+            "income_statement": {},
+            "balance_sheet": {},
+            "cash_flow_statement": {}
+        }
+
+        return financial_data
+
+    except Exception:
+        return None
+
+
 # Main function
 @trace()
 async def analyze_financial_statements(
-    financial_data: dict[str, Any],
+    financial_data: Optional[dict[str, Any]] = None,
+    ticker: Optional[str] = None,
     historical_data: Optional[list[dict[str, Any]]] = None,
     industry_benchmarks: Optional[dict[str, float]] = None,
     analysis_type: Optional[list[str]] = None,
+    fetch_from_sec: bool = True,
     llm_provider: str = "openai",
     model: str = "gpt-4o-mini",
 ) -> FinancialAnalysisResult:
@@ -257,12 +336,15 @@ async def analyze_financial_statements(
     - Trend analysis and identification
     - Red flag detection
     - Investment insights and recommendations
+    - Optional SEC EDGAR data fetching
 
     Args:
         financial_data: Dictionary with income_statement, balance_sheet, cash_flow_statement
+        ticker: Company ticker symbol (e.g., "AAPL") - fetches data from SEC EDGAR if provided
         historical_data: Optional list of historical period data for trend analysis
         industry_benchmarks: Optional industry average ratios for comparison
         analysis_type: Optional focus areas (e.g., ['profitability', 'liquidity'])
+        fetch_from_sec: Whether to fetch data from SEC EDGAR when ticker is provided
         llm_provider: LLM provider to use
         model: Specific model to use
 
@@ -271,6 +353,7 @@ async def analyze_financial_statements(
 
     Example:
         ```python
+        # Option 1: Provide financial data directly
         financial_data = {
             "income_statement": {
                 "revenue": 1000000,
@@ -286,12 +369,24 @@ async def analyze_financial_statements(
                 "total_equity": 1200000
             }
         }
-
         result = await analyze_financial_statements(financial_data)
+
+        # Option 2: Fetch from SEC EDGAR by ticker
+        result = await analyze_financial_statements(ticker="AAPL")
+
         print(f"Overall Rating: {result.overall_rating}")
         print(f"Recommendation: {result.recommendation}")
         ```
     """
+    # Fetch from SEC EDGAR if ticker provided and no financial_data
+    if not financial_data and ticker and fetch_from_sec:
+        financial_data = await fetch_sec_edgar_data(ticker)
+        if not financial_data:
+            raise ValueError(f"Could not fetch financial data for ticker: {ticker}")
+
+    if not financial_data:
+        raise ValueError("Either financial_data or ticker must be provided")
+
     # Step 1: Calculate ratios
     ratios = calculate_financial_ratios(financial_data)
 

@@ -19,6 +19,24 @@ except ImportError:
         return decorator
     LILYPAD_AVAILABLE = False
 
+# Import Helpdesk Integration tool
+try:
+    from ...tools.helpdesk_integration.tool import (
+        create_ticket,
+        update_ticket,
+        search_tickets,
+        add_comment,
+        get_ticket
+    )
+    HELPDESK_AVAILABLE = True
+except ImportError:
+    create_ticket = None
+    update_ticket = None
+    search_tickets = None
+    add_comment = None
+    get_ticket = None
+    HELPDESK_AVAILABLE = False
+
 
 class TicketCategory(BaseModel):
     """Ticket category classification."""
@@ -340,3 +358,218 @@ async def extract_ticket_info(message: str) -> dict[str, any]:
     """
     result = await analyze_support_ticket(message, analysis_depth="detailed")
     return result.extracted_info.model_dump()
+
+
+# Helpdesk Integration Functions
+@trace()
+async def analyze_and_create_ticket(
+    message: str,
+    requester_email: str,
+    subdomain: Optional[str] = None,
+    context: Optional[str] = None,
+    customer_history: Optional[str] = None,
+    auto_assign: bool = True
+) -> dict[str, any]:
+    """
+    Analyze a customer message and create a ticket in the helpdesk system.
+
+    Args:
+        message: Customer support message
+        requester_email: Email of the ticket requester
+        subdomain: Zendesk subdomain (optional if ZENDESK_SUBDOMAIN env var is set)
+        context: Optional product/service context
+        customer_history: Optional customer history
+        auto_assign: Whether to automatically set priority and tags
+
+    Returns:
+        Dictionary with analysis results and ticket information
+
+    Example:
+        ```python
+        result = await analyze_and_create_ticket(
+            message="Can't log in, getting error 403",
+            requester_email="customer@example.com",
+            auto_assign=True
+        )
+        print(f"Created ticket #{result['ticket_id']}")
+        print(f"Priority: {result['priority']}")
+        ```
+    """
+    if not HELPDESK_AVAILABLE:
+        raise ImportError("Helpdesk integration tool is not available")
+
+    # Analyze the message
+    analysis = await analyze_support_ticket(
+        message=message,
+        context=context,
+        customer_history=customer_history,
+        analysis_depth="comprehensive"
+    )
+
+    # Map urgency to Zendesk priority
+    priority_mapping = {
+        "low": "low",
+        "medium": "normal",
+        "high": "high",
+        "critical": "urgent"
+    }
+
+    # Create ticket
+    ticket = await create_ticket(
+        subdomain=subdomain,
+        subject=analysis.summary[:100],  # Truncate to reasonable length
+        description=f"{message}\n\n---\nAI Analysis Summary:\n{analysis.summary}",
+        requester_email=requester_email,
+        priority=priority_mapping[analysis.urgency.urgency_level] if auto_assign else None,
+        tags=analysis.tags if auto_assign else None
+    )
+
+    return {
+        "ticket_id": ticket.id,
+        "ticket_url": ticket.url,
+        "analysis": analysis,
+        "priority": ticket.priority,
+        "status": ticket.status,
+        "created_at": ticket.created_at
+    }
+
+
+@trace()
+async def analyze_and_respond(
+    ticket_id: int,
+    subdomain: Optional[str] = None,
+    context: Optional[str] = None,
+    customer_history: Optional[str] = None,
+    post_response: bool = False
+) -> dict[str, any]:
+    """
+    Analyze an existing ticket and optionally post the suggested response.
+
+    Args:
+        ticket_id: ID of the ticket to analyze
+        subdomain: Zendesk subdomain (optional if ZENDESK_SUBDOMAIN env var is set)
+        context: Optional product/service context
+        customer_history: Optional customer history
+        post_response: Whether to post the suggested response as a comment
+
+    Returns:
+        Dictionary with analysis and response information
+
+    Example:
+        ```python
+        result = await analyze_and_respond(
+            ticket_id=12345,
+            post_response=True
+        )
+        print(f"Suggested response: {result['suggested_response']}")
+        ```
+    """
+    if not HELPDESK_AVAILABLE:
+        raise ImportError("Helpdesk integration tool is not available")
+
+    # Get the ticket
+    ticket = await get_ticket(subdomain=subdomain, ticket_id=ticket_id)
+
+    # Analyze the ticket description
+    analysis = await analyze_support_ticket(
+        message=ticket.description,
+        context=context,
+        customer_history=customer_history,
+        analysis_depth="comprehensive"
+    )
+
+    result = {
+        "ticket_id": ticket_id,
+        "analysis": analysis,
+        "suggested_response": analysis.response_suggestion.suggested_response,
+        "next_steps": analysis.response_suggestion.next_steps,
+        "escalation_needed": analysis.response_suggestion.escalation_needed,
+        "comment_posted": False
+    }
+
+    # Post response as comment if requested
+    if post_response:
+        comment = await add_comment(
+            subdomain=subdomain,
+            ticket_id=ticket_id,
+            body=analysis.response_suggestion.suggested_response,
+            public=True
+        )
+        result["comment_posted"] = True
+        result["comment_id"] = comment.id
+
+    return result
+
+
+@trace()
+async def update_ticket_from_analysis(
+    ticket_id: int,
+    message: str,
+    subdomain: Optional[str] = None,
+    update_priority: bool = True,
+    update_tags: bool = True
+) -> dict[str, any]:
+    """
+    Analyze a message and update the ticket with AI-determined priority and tags.
+
+    Args:
+        ticket_id: ID of the ticket to update
+        message: Message to analyze
+        subdomain: Zendesk subdomain (optional if ZENDESK_SUBDOMAIN env var is set)
+        update_priority: Whether to update ticket priority based on analysis
+        update_tags: Whether to update ticket tags based on analysis
+
+    Returns:
+        Dictionary with analysis and update information
+
+    Example:
+        ```python
+        result = await update_ticket_from_analysis(
+            ticket_id=12345,
+            message="Customer says this is blocking their entire team!",
+            update_priority=True
+        )
+        print(f"Updated priority to: {result['new_priority']}")
+        ```
+    """
+    if not HELPDESK_AVAILABLE:
+        raise ImportError("Helpdesk integration tool is not available")
+
+    # Analyze the message
+    analysis = await analyze_support_ticket(
+        message=message,
+        analysis_depth="detailed"
+    )
+
+    # Map urgency to Zendesk priority
+    priority_mapping = {
+        "low": "low",
+        "medium": "normal",
+        "high": "high",
+        "critical": "urgent"
+    }
+
+    # Prepare update parameters
+    update_params = {}
+    if update_priority:
+        update_params["priority"] = priority_mapping[analysis.urgency.urgency_level]
+    if update_tags:
+        update_params["tags"] = analysis.tags
+
+    # Update ticket if there are changes
+    updated_ticket = None
+    if update_params:
+        updated_ticket = await update_ticket(
+            subdomain=subdomain,
+            ticket_id=ticket_id,
+            **update_params
+        )
+
+    return {
+        "ticket_id": ticket_id,
+        "analysis": analysis,
+        "updates_made": bool(update_params),
+        "new_priority": update_params.get("priority") if update_priority else None,
+        "new_tags": update_params.get("tags") if update_tags else None,
+        "updated_ticket": updated_ticket
+    }

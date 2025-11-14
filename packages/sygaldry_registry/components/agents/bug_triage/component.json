@@ -31,7 +31,7 @@
     "pydantic>=2.0.0",
     "lilypad>=0.1.0"
   ],
-  "registry_dependencies": [],
+  "registry_dependencies": ["github_issues"],
   "environment_variables": [
     {
       "name": "OPENAI_API_KEY",
@@ -41,6 +41,11 @@
     {
       "name": "ANTHROPIC_API_KEY",
       "description": "Anthropic API key for Claude models",
+      "required": false
+    },
+    {
+      "name": "GITHUB_TOKEN",
+      "description": "GitHub personal access token for searching issues (optional, enhances root cause analysis)",
       "required": false
     }
   ],

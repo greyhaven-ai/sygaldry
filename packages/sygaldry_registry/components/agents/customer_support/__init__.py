@@ -13,6 +13,9 @@ from .agent import (
     detect_sentiment,
     suggest_response,
     extract_ticket_info,
+    analyze_and_create_ticket,
+    analyze_and_respond,
+    update_ticket_from_analysis,
 )
 
 __all__ = [
@@ -28,4 +31,7 @@ __all__ = [
     "detect_sentiment",
     "suggest_response",
     "extract_ticket_info",
+    "analyze_and_create_ticket",
+    "analyze_and_respond",
+    "update_ticket_from_analysis",
 ]
