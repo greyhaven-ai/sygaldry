@@ -449,6 +449,52 @@ Detailed documentation of functions, classes, and parameters.
 Tips for optimal usage with Mirascope.
 ```
 
+## Interactive Testing & Examples
+
+Want to test drive the agents before integrating them? We've got you covered!
+
+The **[examples/](examples/)** directory contains interactive testing tools:
+
+**Quick Exploration:**
+- 🚀 **[simple_agent_demo.py](examples/simple_agent_demo.py)** - Quick demos of 4 core agents (great for beginners)
+- 🎯 **[interactive_agent_tester.py](examples/interactive_agent_tester.py)** - Full interactive tester for all 30+ agents
+- 📓 **[agent_testing_notebook.ipynb](examples/agent_testing_notebook.ipynb)** - Jupyter notebook for visual testing
+
+**Production Testing with Audit Logging:**
+- 📝 **[agent_runner_with_logging.py](examples/agent_runner_with_logging.py)** - Comprehensive audit logging
+- 🧪 **[run_scenarios.py](examples/run_scenarios.py)** - Scenario-based testing with full logs
+- 🔍 **[view_logs.py](examples/view_logs.py)** - Log viewer and analyzer
+- 📋 **[test_scenarios.json](examples/test_scenarios.json)** - Realistic test scenarios
+
+### Quick Start
+
+**Option 1: Use the menu script (easiest)**
+```bash
+# Install dependencies
+pip install -r examples/requirements-interactive.txt
+
+# Set your API key
+export OPENAI_API_KEY="your-key"
+
+# Run the menu
+./test_agents.sh
+```
+
+**Option 2: Run specific tests**
+```bash
+# Quick demo
+python3 examples/simple_agent_demo.py
+
+# Production testing with logging
+python3 examples/run_scenarios.py
+
+# View audit logs
+python3 examples/view_logs.py
+```
+
+📖 **See [examples/INTERACTIVE_TESTING.md](examples/INTERACTIVE_TESTING.md)** for the complete testing guide.
+📝 **See [examples/AGENT_TESTING_WITH_LOGGING.md](examples/AGENT_TESTING_WITH_LOGGING.md)** for logging and audit documentation.
+
 ## For Engineers, By Engineers
 
 These tools emerge from our work at Grey Haven AI, where we build production AI systems across industries. We open source the patterns and utilities that prove their value in real deployments.
@@ -468,11 +514,20 @@ Check individual project repositories for contribution guidelines and developmen
 5. Ensure all dependencies are specified
 6. Test with multiple LLM providers
 
+## Documentation
+
+- **Main README**: This file - overview and quick start
+- **Development Guide**: [CLAUDE.md](CLAUDE.md) - comprehensive development context
+- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md) - how to contribute
+- **Interactive Testing**: [examples/](examples/) - test agents interactively
+- **Additional Docs**: [docs/](docs/) - dependency info, PyPI README, test reports
+- **Component Docs**: Each component has its own README in `packages/sygaldry_registry/components/`
+
 ## Support
 
-- **Documentation**: Available in each project repository
-- **Issues**: File bugs and feature requests on respective project pages
-- **Discussions**: Join conversations about tool development and usage
+- **Issues**: File bugs and feature requests on [GitHub Issues](https://github.com/greyhaven-ai/sygaldry/issues)
+- **Discussions**: Join conversations on [GitHub Discussions](https://github.com/greyhaven-ai/sygaldry/discussions)
+- **Examples**: See [examples/](examples/) directory for hands-on testing
 
 ## License
 

@@ -1,0 +1,156 @@
+{
+  "text_processing_scenarios": [
+    {
+      "name": "Technical Article Summarization",
+      "agent": "text_summarization",
+      "function": "summarize_text",
+      "params": {
+        "text": "Quantum computing represents a paradigm shift in computational capabilities. Unlike classical computers that use bits representing either 0 or 1, quantum computers use quantum bits or 'qubits' that can exist in superposition states. This allows quantum computers to process vast amounts of information simultaneously. Recent breakthroughs in quantum error correction and qubit stability have brought us closer to practical quantum computing applications. Industries from pharmaceuticals to cryptography are preparing for the quantum revolution, with potential applications in drug discovery, financial modeling, and optimization problems that are currently intractable for classical computers.",
+        "style": "technical",
+        "max_length": 100
+      }
+    },
+    {
+      "name": "Executive Summary Generation",
+      "agent": "text_summarization",
+      "function": "executive_brief",
+      "params": {
+        "text": "Our Q3 financial results demonstrate strong momentum across all business segments. Revenue increased 23% year-over-year to $15.2M, driven primarily by enterprise adoption of our AI platform. Operating margins improved to 18%, reflecting successful cost optimization initiatives. Customer acquisition costs decreased 15% while customer lifetime value increased 31%. Looking ahead, we're expanding into three new markets and launching two major product features that address key customer pain points identified through our feedback analysis. We remain on track to achieve profitability by Q4 while maintaining healthy growth rates."
+      }
+    },
+    {
+      "name": "Sentiment Analysis - Product Review",
+      "agent": "sentiment_analysis",
+      "function": "analyze_sentiment",
+      "params": {
+        "text": "I've been using this software for three months now and I have mixed feelings. The features are powerful and the UI is intuitive, which I absolutely love. However, the customer support has been disappointing - long wait times and generic responses. The price point is reasonable for what you get, but the frequent bugs are frustrating. Overall, it's a decent product that could be great with some improvements."
+      }
+    },
+    {
+      "name": "Sentiment Analysis - Customer Complaint",
+      "agent": "sentiment_analysis",
+      "function": "analyze_sentiment",
+      "params": {
+        "text": "This is completely unacceptable! I've been waiting for my order for three weeks with no updates. Every time I contact support, I get a different answer. I'm extremely disappointed and will never buy from this company again. Save yourself the frustration and shop elsewhere!"
+      }
+    }
+  ],
+  "security_scenarios": [
+    {
+      "name": "PII Scrubbing - Email Thread",
+      "agent": "pii_scrubbing",
+      "function": "scrub_pii",
+      "params": {
+        "text": "Hi John,\n\nThanks for your email. I've reviewed the account for Sarah Johnson (SSN: 123-45-6789, DOB: 05/15/1985). Her current address is 456 Oak Street, Springfield, IL 62701. You can reach her at sarah.j@email.com or (555) 234-5678.\n\nRegarding the payment, please process the credit card ending in 8765 for $1,234.56.\n\nBest regards,\nMike Thompson\nmike.thompson@company.com",
+        "scrubbing_method": "mask"
+      }
+    },
+    {
+      "name": "Code Review - Security Vulnerabilities",
+      "agent": "code_review",
+      "function": "review_code",
+      "params": {
+        "code": "import os\nimport sqlite3\nfrom flask import Flask, request\n\napp = Flask(__name__)\n\n@app.route('/login', methods=['POST'])\ndef login():\n    username = request.form['username']\n    password = request.form['password']\n    \n    # SQL Injection vulnerability!\n    query = f\"SELECT * FROM users WHERE username='{username}' AND password='{password}'\"\n    \n    conn = sqlite3.connect('users.db')\n    cursor = conn.cursor()\n    cursor.execute(query)\n    user = cursor.fetchone()\n    \n    if user:\n        # Storing sensitive data in plain text!\n        with open('session.txt', 'w') as f:\n            f.write(f\"User: {username}, Token: {os.urandom(16).hex()}\")\n        return {\"status\": \"success\"}\n    return {\"status\": \"failed\"}\n\n@app.route('/user/<user_id>')\ndef get_user(user_id):\n    # No input validation!\n    conn = sqlite3.connect('users.db')\n    cursor = conn.cursor()\n    cursor.execute(f\"SELECT * FROM users WHERE id={user_id}\")\n    return cursor.fetchone()",
+        "language": "python",
+        "focus_areas": ["security", "best_practices"]
+      }
+    }
+  ],
+  "business_scenarios": [
+    {
+      "name": "Contract Analysis - Service Agreement",
+      "agent": "contract_analysis",
+      "function": "analyze_contract",
+      "params": {
+        "contract_text": "SOFTWARE LICENSE AGREEMENT\n\nThis Agreement is entered into on January 1, 2024, between TechCorp Inc. ('Licensor') and Client Company ('Licensee').\n\n1. LICENSE GRANT\nLicensor grants Licensee a non-exclusive, non-transferable license to use the Software for internal business purposes only. License is limited to 100 named users.\n\n2. PAYMENT TERMS\nLicensee shall pay $50,000 annually, due within 15 days of invoice. Late payments accrue 2% monthly interest. Non-payment for 60 days results in immediate license termination.\n\n3. TERM AND TERMINATION\nInitial term is 3 years with automatic renewal unless either party provides 90 days written notice. Licensor may terminate immediately for material breach. Upon termination, Licensee must destroy all copies of the Software.\n\n4. WARRANTY AND LIABILITY\nSoftware is provided 'AS IS' without warranties. Licensor's total liability shall not exceed fees paid in the prior 12 months. Licensor is not liable for indirect, consequential, or punitive damages.\n\n5. INTELLECTUAL PROPERTY\nLicensor retains all rights to the Software. Licensee may not reverse engineer, modify, or create derivative works. Any customizations developed by Licensor remain Licensor's property unless separately agreed.\n\n6. CONFIDENTIALITY\nBoth parties agree to maintain confidentiality of proprietary information for 5 years after termination. Breach may result in injunctive relief.\n\n7. DATA PRIVACY\nLicensor may collect usage data and analytics. Licensee data remains Licensee's property, but Licensor has perpetual license to use anonymized, aggregated data.",
+        "contract_type": "software_license",
+        "focus_areas": ["payment_terms", "termination", "liability", "intellectual_property", "data_rights"]
+      }
+    },
+    {
+      "name": "Bug Triage - Production Issue",
+      "agent": "bug_triage",
+      "function": "triage_bug",
+      "params": {
+        "title": "Database connection pool exhaustion causing 503 errors",
+        "description": "Production database is hitting max connections (100) during peak hours (9-11 AM EST), causing service outages.\n\nSymptoms:\n- 503 Service Unavailable errors\n- Response times spike from 200ms to 10+ seconds\n- Database connection timeouts in logs\n- Affects ~30% of requests during peak\n\nSteps to reproduce:\n1. Run load test with 500 concurrent users\n2. Monitor connection pool metrics\n3. Observe connection pool exhaustion after ~5 minutes\n4. API requests start failing with timeout errors\n\nEnvironment:\n- Production (AWS RDS PostgreSQL 14.5)\n- Application: Node.js 18.x with Sequelize ORM\n- Current pool size: max=100, min=10\n- ~10,000 active users during peak\n\nImpact:\n- Revenue loss estimated at $5K/hour\n- Customer complaints increasing\n- SLA breach (99.9% uptime)\n\nLogs show connection not being released properly in payment processing endpoints.",
+        "environment": "Production - AWS RDS PostgreSQL, Node.js 18.x",
+        "user_impact": "high",
+        "frequency": "daily during peak hours"
+      }
+    },
+    {
+      "name": "Task Prioritization - Development Team",
+      "agent": "task_prioritization",
+      "function": "prioritize_tasks",
+      "params": {
+        "tasks": [
+          "Fix critical production bug causing payment failures (affecting 50% of transactions)",
+          "Update project documentation for onboarding new developer next week",
+          "Implement new feature requested by top client (contractual deadline in 2 weeks)",
+          "Refactor legacy authentication module (tech debt, no immediate issues)",
+          "Attend daily standup meeting (scheduled for 10 AM)",
+          "Review pull requests from team members (3 PRs waiting)",
+          "Research new testing framework for Q2 adoption",
+          "Set up monitoring for new microservice deployed last week",
+          "Prepare demo for investor meeting tomorrow afternoon",
+          "Optimize database queries (performance degrading slowly)",
+          "Update dependencies with security vulnerabilities (CVSS score 7.5)",
+          "Learn new programming language for personal development",
+          "Create unit tests for recently added features",
+          "Respond to customer support escalation (VIP client, not urgent issue)"
+        ]
+      }
+    }
+  ],
+  "conversational_scenarios": [
+    {
+      "name": "Customer Support - Account Issue",
+      "agent": "customer_support",
+      "function": "handle_support_message",
+      "turns": [
+        {
+          "user": "I can't access my account. It says my password is incorrect but I know it's right!",
+          "params": {
+            "message": "I can't access my account. It says my password is incorrect but I know it's right!",
+            "customer_id": "CUST-12345",
+            "context": {}
+          }
+        },
+        {
+          "user": "I tried resetting it but I'm not receiving the reset email",
+          "params": {
+            "message": "I tried resetting it but I'm not receiving the reset email",
+            "customer_id": "CUST-12345",
+            "context": {
+              "issue": "login_failed",
+              "attempted_solution": "password_reset"
+            }
+          }
+        },
+        {
+          "user": "Yes, I checked spam. The email address is john.doe@company.com",
+          "params": {
+            "message": "Yes, I checked spam. The email address is john.doe@company.com",
+            "customer_id": "CUST-12345",
+            "context": {
+              "issue": "login_failed",
+              "attempted_solution": "password_reset",
+              "email_provided": "john.doe@company.com"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "research_scenarios": [
+    {
+      "name": "Hallucination Detection - Mixed Claims",
+      "agent": "hallucination_detector",
+      "function": "detect_hallucinations",
+      "params": {
+        "text": "The Eiffel Tower, completed in 1889 for the World's Fair in Paris, stands at 324 meters tall and was designed by Gustave Eiffel. It was originally intended to be temporary but became a permanent fixture of the Paris skyline. Interestingly, the tower is painted every 7 years and requires about 60 tons of paint. The structure sways up to 6-7 cm in strong winds. In 2015, solar panels were installed on the second floor, making it partially self-sustaining. The tower receives approximately 25 million visitors annually, making it the most visited paid monument in the world."
+      }
+    }
+  ]
+}
