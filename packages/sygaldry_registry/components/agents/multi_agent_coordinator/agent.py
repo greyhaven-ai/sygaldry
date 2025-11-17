@@ -31,7 +31,7 @@ class TaskBreakdown(BaseModel):
 
     subtasks: list[str] = Field(..., description="List of subtasks to be executed")
     dependencies: dict[str, list[str]] = Field(
-        default_factory=dict, description="Dependencies between subtasks (subtask -> list of prerequisite subtasks)"
+        ..., description="Dependencies between subtasks (subtask -> list of prerequisite subtasks) (empty dict if none)"
     )
     estimated_complexity: int = Field(..., description="Complexity score from 1-10")
     reasoning: str = Field(..., description="Reasoning for the task breakdown")
@@ -42,7 +42,7 @@ class AgentSelection(BaseModel):
 
     subtask: str = Field(..., description="The subtask to be executed")
     primary_agent: AgentCapability = Field(..., description="Primary agent for this subtask")
-    supporting_agents: list[AgentCapability] = Field(default_factory=list, description="Supporting agents that may be needed")
+    supporting_agents: list[AgentCapability] = Field(..., description="Supporting agents that may be needed (empty list if none)")
     confidence: float = Field(..., description="Confidence in agent selection (0-1)")
     reasoning: str = Field(..., description="Reasoning for agent selection")
 
@@ -54,7 +54,7 @@ class CoordinationPlan(BaseModel):
     agent_assignments: list[AgentSelection]
     execution_order: list[str] = Field(..., description="Order of subtask execution")
     parallel_groups: list[list[str]] = Field(
-        default_factory=list, description="Groups of subtasks that can be executed in parallel"
+        ..., description="Groups of subtasks that can be executed in parallel (empty list if none)"
     )
     estimated_duration: str = Field(..., description="Estimated time to complete")
     risk_assessment: str = Field(..., description="Potential risks and mitigation strategies")
@@ -68,7 +68,14 @@ class CoordinationResult(BaseModel):
     agents_used: list[str] = Field(..., description="List of agents that were utilized")
     execution_summary: str = Field(..., description="Summary of the execution process")
     quality_score: float = Field(..., description="Quality assessment of the result (0-1)")
-    recommendations: list[str] = Field(default_factory=list, description="Recommendations for future similar tasks")
+    recommendations: list[str] = Field(..., description="Recommendations for future similar tasks (empty list if none)")
+
+
+# Rebuild models to resolve forward references
+TaskBreakdown.model_rebuild()
+AgentSelection.model_rebuild()
+CoordinationPlan.model_rebuild()
+CoordinationResult.model_rebuild()
 
 
 @llm.call(
@@ -76,7 +83,7 @@ class CoordinationResult(BaseModel):
     model_id="gpt-4o",
     format=TaskBreakdown,
 )
-def analyze_task_breakdown(task: str, context: str = "", requirements: str = "") -> str:
+async def _analyze_task_breakdown_call(task: str, context: str = "", requirements: str = "") -> str:
     """Analyze and break down a complex task into manageable subtasks."""
     return f"""
     SYSTEM:
@@ -101,12 +108,19 @@ def analyze_task_breakdown(task: str, context: str = "", requirements: str = "")
     """
 
 
+# Public wrapper for analyze_task_breakdown
+async def analyze_task_breakdown(task: str, context: str = "", requirements: str = "") -> TaskBreakdown:
+    """Analyze and break down a complex task into manageable subtasks."""
+    response = await _analyze_task_breakdown_call(task=task, context=context, requirements=requirements)
+    return response.parse()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=list[AgentSelection],
 )
-def select_agents_for_subtasks(subtasks: list[str], context: str = "") -> str:
+async def _select_agents_for_subtasks_call(subtasks: list[str], context: str = "") -> str:
     """Select appropriate agents for each subtask."""
     return f"""
     SYSTEM:
@@ -144,12 +158,19 @@ def select_agents_for_subtasks(subtasks: list[str], context: str = "") -> str:
     """
 
 
+# Public wrapper for select_agents_for_subtasks
+async def select_agents_for_subtasks(subtasks: list[str], context: str = "") -> list[AgentSelection]:
+    """Select appropriate agents for each subtask."""
+    response = await _select_agents_for_subtasks_call(subtasks=subtasks, context=context)
+    return response.parse()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=CoordinationPlan,
 )
-def create_coordination_plan(
+async def _create_coordination_plan_call(
     task_breakdown: TaskBreakdown, agent_assignments: list[AgentSelection], original_task: str
 ) -> str:
     """Create a comprehensive coordination plan for multi-agent execution."""
@@ -178,12 +199,23 @@ def create_coordination_plan(
     """
 
 
+# Public wrapper for create_coordination_plan
+async def create_coordination_plan(
+    task_breakdown: TaskBreakdown, agent_assignments: list[AgentSelection], original_task: str
+) -> CoordinationPlan:
+    """Create a comprehensive coordination plan for multi-agent execution."""
+    response = await _create_coordination_plan_call(
+        task_breakdown=task_breakdown, agent_assignments=agent_assignments, original_task=original_task
+    )
+    return response.parse()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=CoordinationResult,
 )
-def synthesize_final_result(
+async def _synthesize_final_result_call(
     original_task: str, coordination_plan: CoordinationPlan, subtask_results: dict[str, str], execution_notes: str = ""
 ) -> str:
     """Synthesize final result from all agent outputs."""
@@ -210,6 +242,18 @@ def synthesize_final_result(
 
     Provide a comprehensive final answer with quality assessment and recommendations.
     """
+
+
+# Public wrapper for synthesize_final_result
+async def synthesize_final_result(
+    original_task: str, coordination_plan: CoordinationPlan, subtask_results: dict[str, str], execution_notes: str = ""
+) -> CoordinationResult:
+    """Synthesize final result from all agent outputs."""
+    response = await _synthesize_final_result_call(
+        original_task=original_task, coordination_plan=coordination_plan,
+        subtask_results=subtask_results, execution_notes=execution_notes
+    )
+    return response.parse()
 
 
 async def execute_subtask_with_agent(
@@ -260,7 +304,7 @@ async def execute_subtask_with_agent(
             else:
                 # Fallback to LLM-based execution
                 @llm.call(provider="openai:completions", model_id="gpt-4o-mini")
-                def execute_generic_subtask(subtask: str, agent_capability: str, context: str = "") -> str:
+                async def execute_generic_subtask(subtask: str, agent_capability: str, context: str = "") -> str:
                     return f"""
                     Execute this subtask using {agent_capability} capabilities:
 

@@ -38,8 +38,9 @@ class ComponentIdentification(BaseModel):
 
     component_name: str = Field(..., description="Name of the affected component or module")
     component_type: str = Field(..., description="Type of component (e.g., 'frontend', 'backend', 'database', 'api')")
-    subcomponent: Optional[str] = Field(None, description="Specific subcomponent if applicable")
-    file_paths: list[str] = Field(default_factory=list, description="Likely affected file paths or modules")
+    # Note: All fields must be required for OpenAI schema validation
+    subcomponent: str | None = Field(..., description="Specific subcomponent if applicable (null if not applicable)")
+    file_paths: list[str] = Field(..., description="Likely affected file paths or modules (empty list if none)")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in component identification")
 
 
@@ -79,12 +80,9 @@ class RootCauseAnalysis(BaseModel):
         "ui_ux",
         "other"
     ] = Field(..., description="Category of the root cause")
-    contributing_factors: list[str] = Field(
-        default_factory=list, description="Other factors contributing to the bug"
-    )
-    similar_issues: list[str] = Field(
-        default_factory=list, description="Similar issues or patterns observed"
-    )
+    # Note: All fields must be required for OpenAI schema validation
+    contributing_factors: list[str] = Field(..., description="Other factors contributing to the bug (empty list if none)")
+    similar_issues: list[str] = Field(..., description="Similar issues or patterns observed (empty list if none)")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence in root cause analysis")
 
 
@@ -92,50 +90,53 @@ class ReproductionSteps(BaseModel):
     """Suggested steps to reproduce the bug."""
 
     steps: list[str] = Field(..., description="Step-by-step reproduction instructions")
-    preconditions: list[str] = Field(default_factory=list, description="Required preconditions or setup")
+    # Note: All fields must be required for OpenAI schema validation
+    preconditions: list[str] = Field(..., description="Required preconditions or setup (empty list if none)")
     expected_behavior: str = Field(..., description="What should happen")
     actual_behavior: str = Field(..., description="What actually happens")
     reproducibility: Literal["always", "often", "sometimes", "rarely", "unable"] = Field(
         ..., description="How reliably the bug can be reproduced"
     )
-    environment_details: list[str] = Field(
-        default_factory=list, description="Relevant environment details (OS, browser, version, etc.)"
-    )
+    environment_details: list[str] = Field(..., description="Relevant environment details (OS, browser, version, etc.) - empty list if none")
 
 
 class BugTriageResult(BaseModel):
     """Complete bug triage analysis result."""
 
     summary: str = Field(..., description="Executive summary of the bug")
-    severity_classification: SeverityClassification = Field(..., description="Severity and priority assessment")
-    component: ComponentIdentification = Field(..., description="Affected component identification")
-    root_cause: RootCauseAnalysis = Field(..., description="Root cause analysis")
-    reproduction: ReproductionSteps = Field(..., description="Reproduction steps")
-    recommended_assignee: Optional[str] = Field(
-        None, description="Recommended team or person to handle this bug"
-    )
+    # Note: Field(...) without description for nested models to avoid OpenAI schema error
+    # OpenAI rejects $ref with additional keywords like 'description'
+    severity_classification: SeverityClassification = Field(...)
+    component: ComponentIdentification = Field(...)
+    root_cause: RootCauseAnalysis = Field(...)
+    reproduction: ReproductionSteps = Field(...)
+    # Note: All fields must be required for OpenAI schema validation
+    recommended_assignee: str | None = Field(..., description="Recommended team or person to handle this bug (null if unknown)")
     estimated_effort: Literal["trivial", "small", "medium", "large", "extra_large"] = Field(
         ..., description="Estimated effort to fix"
     )
-    dependencies: list[str] = Field(
-        default_factory=list, description="Dependencies or blockers for fixing this bug"
-    )
-    related_bugs: list[str] = Field(
-        default_factory=list, description="Related or duplicate bugs"
-    )
-    recommendations: list[str] = Field(
-        default_factory=list, description="Recommendations for fixing and preventing similar bugs"
-    )
-    tags: list[str] = Field(default_factory=list, description="Relevant tags for categorization")
+    dependencies: list[str] = Field(..., description="Dependencies or blockers for fixing this bug (empty list if none)")
+    related_bugs: list[str] = Field(..., description="Related or duplicate bugs (empty list if none)")
+    recommendations: list[str] = Field(..., description="Recommendations for fixing and preventing similar bugs (empty list if none)")
+    tags: list[str] = Field(..., description="Relevant tags for categorization (empty list if none)")
+
+
+# Rebuild models to resolve forward references
+ComponentIdentification.model_rebuild()
+SeverityClassification.model_rebuild()
+RootCauseAnalysis.model_rebuild()
+ReproductionSteps.model_rebuild()
+BugTriageResult.model_rebuild()
 
 
 # Step 1: Classify severity and priority
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=SeverityClassification,
 )
-async def classify_severity(bug_report: str, context: Optional[str] = None) -> str:
+async def _classify_severity_call(bug_report: str, context: Optional[str] = None) -> str:
     """Classify bug severity and priority."""
     context_info = f"\n\nAdditional Context:\n{context}" if context else ""
 
@@ -175,13 +176,29 @@ Provide detailed reasoning for your classification, explaining:
 5. Potential business impact"""
 
 
+# Public wrapper - returns parsed SeverityClassification
+async def classify_severity(bug_report: str, context: Optional[str] = None) -> SeverityClassification:
+    """Classify bug severity and priority.
+
+    Args:
+        bug_report: The bug report text to analyze
+        context: Optional additional context
+
+    Returns:
+        SeverityClassification with severity, priority, and impact analysis
+    """
+    response = await _classify_severity_call(bug_report=bug_report, context=context)
+    return response.parse()
+
+
 # Step 2: Identify affected component
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=ComponentIdentification,
 )
-async def identify_component(bug_report: str, codebase_structure: Optional[str] = None) -> str:
+async def _identify_component_call(bug_report: str, codebase_structure: Optional[str] = None) -> str:
     """Identify affected component or module."""
     structure_info = f"\n\nCodebase Structure:\n{codebase_structure}" if codebase_structure else ""
 
@@ -207,14 +224,30 @@ Consider:
 - Common architectural patterns"""
 
 
+# Public wrapper - returns parsed ComponentIdentification
+async def identify_component(bug_report: str, codebase_structure: Optional[str] = None) -> ComponentIdentification:
+    """Identify affected component or module.
+
+    Args:
+        bug_report: The bug report text to analyze
+        codebase_structure: Optional codebase structure information
+
+    Returns:
+        ComponentIdentification with component name, type, and file paths
+    """
+    response = await _identify_component_call(bug_report=bug_report, codebase_structure=codebase_structure)
+    return response.parse()
+
+
 # Step 3: Analyze root cause (with GitHub Issues search capability)
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=RootCauseAnalysis,
     tools=[search_issues, get_issue] if GITHUB_AVAILABLE else [],
 )
-async def analyze_root_cause(bug_report: str, component_info: str, severity_info: str, repo: Optional[str] = None) -> str:
+async def _analyze_root_cause_call(bug_report: str, component_info: str, severity_info: str, repo: Optional[str] = None) -> str:
     """Analyze potential root causes."""
     repo_note = f"\n\nGitHub Repository: {repo}\nYou have access to search_issues() and get_issue() tools. Use them to find similar issues or related bugs in the repository." if repo else ""
 
@@ -260,13 +293,36 @@ Base your analysis on:
 - Known patterns and common issues"""
 
 
+# Public wrapper - returns parsed RootCauseAnalysis
+async def analyze_root_cause(bug_report: str, component_info: str, severity_info: str, repo: Optional[str] = None) -> RootCauseAnalysis:
+    """Analyze potential root causes of the bug.
+
+    Args:
+        bug_report: The bug report text to analyze
+        component_info: Component information from identify_component
+        severity_info: Severity information from classify_severity
+        repo: Optional GitHub repository (format: "owner/repo") for searching similar issues
+
+    Returns:
+        RootCauseAnalysis with likely cause, category, and confidence
+    """
+    response = await _analyze_root_cause_call(
+        bug_report=bug_report,
+        component_info=component_info,
+        severity_info=severity_info,
+        repo=repo
+    )
+    return response.parse()
+
+
 # Step 4: Generate reproduction steps
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=ReproductionSteps,
 )
-async def generate_reproduction_steps(bug_report: str, component_info: str) -> str:
+async def _generate_reproduction_steps_call(bug_report: str, component_info: str) -> str:
     """Generate detailed reproduction steps."""
     return f"""You are an expert QA engineer creating reproduction steps for bugs.
 
@@ -299,6 +355,21 @@ Make steps:
 - Include environment-specific details
 
 If information is missing from the bug report, note what additional details are needed."""
+
+
+# Public wrapper - returns parsed ReproductionSteps
+async def generate_reproduction_steps(bug_report: str, component_info: str) -> ReproductionSteps:
+    """Generate detailed reproduction steps for the bug.
+
+    Args:
+        bug_report: The bug report text to analyze
+        component_info: Component information from identify_component
+
+    Returns:
+        ReproductionSteps with steps, preconditions, expected/actual behavior
+    """
+    response = await _generate_reproduction_steps_call(bug_report=bug_report, component_info=component_info)
+    return response.parse()
 
 
 # Main bug triage function

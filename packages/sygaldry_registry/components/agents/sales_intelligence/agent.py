@@ -28,12 +28,13 @@ except ImportError:
 class SalesTarget(BaseModel):
     """Sales target profile specification."""
 
-    role_title: str | None = Field(None, description="Target job title (e.g., 'Head of Sales', 'VP Marketing')")
-    company_size: str | None = Field(None, description="Company size range (e.g., '<500 employees', '10-50 employees')")
-    location: str | None = Field(None, description="Geographic location (e.g., 'Europe', 'US East Coast')")
-    industry: str | None = Field(None, description="Target industry or vertical")
-    company_stage: str | None = Field(None, description="Company stage (e.g., 'Series B', 'Fortune 500')")
-    additional_criteria: list[str] = Field(default_factory=list, description="Additional filtering criteria")
+    # Note: All fields must be required for OpenAI schema validation
+    role_title: str | None = Field(..., description="Target job title (null if not specified)")
+    company_size: str | None = Field(..., description="Company size range (null if not specified)")
+    location: str | None = Field(..., description="Geographic location (null if not specified)")
+    industry: str | None = Field(..., description="Target industry or vertical (null if not specified)")
+    company_stage: str | None = Field(..., description="Company stage (null if not specified)")
+    additional_criteria: list[str] = Field(..., description="Additional filtering criteria (empty list if none)")
 
 
 class SalesIntelligenceResponse(BaseModel):
@@ -42,19 +43,26 @@ class SalesIntelligenceResponse(BaseModel):
     webset_id: str = Field(..., description="ID of the created webset")
     search_query: str = Field(..., description="Search query used")
     entity_type: str = Field(..., description="Type of entity searched for")
-    criteria: list[str] = Field(default_factory=list, description="Verification criteria applied")
-    enrichments: list[str] = Field(default_factory=list, description="Data enrichments requested")
-    estimated_results: int | None = Field(None, description="Estimated number of results")
+    # Note: All fields must be required for OpenAI schema validation
+    criteria: list[str] = Field(..., description="Verification criteria applied (empty list if none)")
+    enrichments: list[str] = Field(..., description="Data enrichments requested (empty list if none)")
+    estimated_results: int | None = Field(..., description="Estimated number of results (null if unknown)")
     status: str = Field(..., description="Current status of the webset")
 
 
+# Rebuild models to resolve forward references
+SalesTarget.model_rebuild()
+SalesIntelligenceResponse.model_rebuild()
+
+
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=SalesIntelligenceResponse,
     tools=[create_webset, get_webset_status, list_webset_items] if create_webset else [],
 )
-async def sales_intelligence_agent(
+async def _sales_intelligence_agent_call(
     role_or_company: str,
     company_size: str | None = None,
     location: str | None = None,
@@ -121,6 +129,45 @@ Stage/Type: {company_stage}
 Additional Requirements: {additional_reqs}
 
 Create a webset to find these sales targets with appropriate criteria and enrichments."""
+
+
+# Public wrapper - returns parsed SalesIntelligenceResponse
+async def sales_intelligence_agent(
+    role_or_company: str,
+    company_size: str | None = None,
+    location: str | None = None,
+    industry: str | None = None,
+    company_stage: str | None = None,
+    additional_requirements: list[str] | None = None,
+    llm_provider: str = "openai",
+    model: str = "gpt-4o-mini",
+) -> SalesIntelligenceResponse:
+    """Find targeted sales prospects using Exa websets.
+
+    Args:
+        role_or_company: Target role title or company type
+        company_size: Company size requirements
+        location: Geographic location
+        industry: Target industry or vertical
+        company_stage: Company stage or type
+        additional_requirements: Additional filtering criteria
+        llm_provider: LLM provider to use
+        model: Model to use
+
+    Returns:
+        SalesIntelligenceResponse with webset details
+    """
+    response = await _sales_intelligence_agent_call(
+        role_or_company=role_or_company,
+        company_size=company_size,
+        location=location,
+        industry=industry,
+        company_stage=company_stage,
+        additional_requirements=additional_requirements,
+        llm_provider=llm_provider,
+        model=model
+    )
+    return response.parse()
 
 
 # Convenience functions for common sales searches

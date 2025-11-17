@@ -38,8 +38,9 @@ class ClaimVerification(BaseModel):
     claim: str = Field(..., description="The claim being verified")
     assessment: str = Field(..., description="Assessment: 'supported', 'refuted', or 'insufficient_evidence'")
     confidence_score: float = Field(..., ge=0.0, le=1.0, description="Confidence score between 0 and 1")
-    supporting_sources: list[str] = Field(default_factory=list, description="URLs of sources supporting the claim")
-    refuting_sources: list[str] = Field(default_factory=list, description="URLs of sources refuting the claim")
+    # Note: All fields must be required for OpenAI schema validation
+    supporting_sources: list[str] = Field(..., description="URLs of sources supporting the claim (empty list if none)")
+    refuting_sources: list[str] = Field(..., description="URLs of sources refuting the claim (empty list if none)")
     summary: str = Field(..., description="Brief summary of the evidence found")
 
 
@@ -55,13 +56,20 @@ class HallucinationDetectionResponse(BaseModel):
     summary: str = Field(..., description="Summary of the hallucination detection results")
 
 
-# Step 1: Extract claims from text
+# Rebuild models to resolve forward references
+ExtractedClaim.model_rebuild()
+ExtractedClaimsResponse.model_rebuild()
+ClaimVerification.model_rebuild()
+HallucinationDetectionResponse.model_rebuild()
+
+
+# Step 1: Extract claims from text - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=ExtractedClaimsResponse,
 )
-async def extract_claims(text: str) -> str:
+async def _extract_claims_call(text: str) -> str:
     """Extract factual claims from the text using an LLM."""
     return f"""
     You are an expert at extracting claims from text.
@@ -76,14 +84,28 @@ async def extract_claims(text: str) -> str:
     """
 
 
-# Step 2: Search for evidence and verify a single claim
+# Public wrapper for extract_claims
+async def extract_claims(text: str) -> ExtractedClaimsResponse:
+    """Extract factual claims from the text using an LLM.
+
+    Args:
+        text: Text to analyze
+
+    Returns:
+        ExtractedClaimsResponse with list of claims
+    """
+    response = await _extract_claims_call(text=text)
+    return response.parse()
+
+
+# Step 2: Search for evidence and verify a single claim - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=ClaimVerification,
     tools=[exa_search, exa_answer] if EXA_AVAILABLE else [],
 )
-async def verify_claim(claim: str) -> str:
+async def _verify_claim_call(claim: str) -> str:
     """Verify a single claim using Exa search."""
     return f"""
     You are an expert fact-checker. Your task is to verify the following claim
@@ -115,13 +137,27 @@ async def verify_claim(claim: str) -> str:
     """
 
 
-# Step 3: Main hallucination detector
+# Public wrapper for verify_claim
+async def verify_claim(claim: str) -> ClaimVerification:
+    """Verify a single claim using Exa search.
+
+    Args:
+        claim: Claim to verify
+
+    Returns:
+        ClaimVerification with verification results
+    """
+    response = await _verify_claim_call(claim=claim)
+    return response.parse()
+
+
+# Step 3: Main hallucination detector - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=HallucinationDetectionResponse,
 )
-async def analyze_hallucinations(original_text: str, verification_results: str) -> str:
+async def _analyze_hallucinations_call(original_text: str, verification_results: str) -> str:
     """Analyze the overall hallucination detection results."""
     return f"""
     You are analyzing the results of a hallucination detection process.
@@ -149,6 +185,21 @@ async def analyze_hallucinations(original_text: str, verification_results: str) 
 
     5. Provide a summary of the findings
     """
+
+
+# Public wrapper for analyze_hallucinations
+async def analyze_hallucinations(original_text: str, verification_results: str) -> HallucinationDetectionResponse:
+    """Analyze the overall hallucination detection results.
+
+    Args:
+        original_text: Original text that was analyzed
+        verification_results: JSON string of verification results
+
+    Returns:
+        HallucinationDetectionResponse with complete analysis
+    """
+    response = await _analyze_hallucinations_call(original_text=original_text, verification_results=verification_results)
+    return response.parse()
 
 
 async def detect_hallucinations(

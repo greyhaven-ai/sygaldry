@@ -48,8 +48,10 @@ class SentimentAnalysisResult(BaseModel):
     )
     polarity_score: float = Field(..., ge=-1.0, le=1.0, description="Polarity score from -1 (negative) to 1 (positive)")
     subjectivity_score: float = Field(..., ge=0.0, le=1.0, description="Subjectivity score from 0 (objective) to 1 (subjective)")
-    emotions: EmotionScore = Field(..., description="Detected emotions")
-    aspects: list[AspectSentiment] = Field(..., description="Aspect-based sentiment analysis")
+    # Note: Remove description from nested model fields to avoid OpenAI schema validation error
+    # OpenAI rejects $ref with additional keywords like 'description'
+    emotions: EmotionScore
+    aspects: list[AspectSentiment]
     key_phrases: list[str] = Field(..., description="Key phrases indicating sentiment")
     intensity: Literal["weak", "moderate", "strong", "very_strong"] = Field(
         ..., description="Intensity of the sentiment"
@@ -57,12 +59,18 @@ class SentimentAnalysisResult(BaseModel):
     summary: str = Field(..., description="Summary of the sentiment analysis")
 
 
+# Rebuild models to resolve forward references
+EmotionScore.model_rebuild()
+AspectSentiment.model_rebuild()
+SentimentAnalysisResult.model_rebuild()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=SentimentAnalysisResult,
 )
-async def analyze_sentiment(
+async def _analyze_sentiment_call(
     text: str,
     analysis_depth: Literal["basic", "detailed", "comprehensive"] = "detailed",
     context: Optional[str] = None
@@ -161,6 +169,31 @@ Be nuanced and consider:
 - Context and domain
 - Intensity modifiers (very, extremely, slightly, etc.)
 - Negations (not good, never satisfied, etc.)"""
+
+
+# Public API - wrapper that returns parsed result
+@trace()
+async def analyze_sentiment(
+    text: str,
+    analysis_depth: Literal["basic", "detailed", "comprehensive"] = "detailed",
+    context: Optional[str] = None
+) -> SentimentAnalysisResult:
+    """
+    Analyze sentiment of text with multi-dimensional analysis.
+
+    This is the main public API function. It wraps the Mirascope call and returns
+    the parsed result.
+
+    Args:
+        text: The text to analyze
+        analysis_depth: Level of analysis detail
+        context: Optional context to improve analysis
+
+    Returns:
+        SentimentAnalysisResult with complete analysis
+    """
+    response = await _analyze_sentiment_call(text, analysis_depth, context)
+    return response.parse()
 
 
 # Convenience functions

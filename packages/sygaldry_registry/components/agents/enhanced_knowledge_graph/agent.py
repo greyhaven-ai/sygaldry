@@ -48,13 +48,21 @@ class ConsistencyCheck(BaseModel):
     confidence_boost: float = Field(..., description="Confidence boost from consistency")
 
 
+# Rebuild models to resolve forward references
+EntityWithReasoning.model_rebuild()
+RelationshipWithReasoning.model_rebuild()
+ExtractionPlan.model_rebuild()
+ConsistencyCheck.model_rebuild()
+
+
 # Step 1: Plan extraction strategy (meta-reasoning)
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=ExtractionPlan,
 )
-async def plan_extraction(text_preview: str, domain: str) -> str:
+async def _plan_extraction_call(text_preview: str, domain: str) -> str:
     """Plan extraction strategy using meta-reasoning."""
     return f"""
     You are a knowledge extraction strategist. Plan the best approach for extracting knowledge from this text.
@@ -78,13 +86,29 @@ async def plan_extraction(text_preview: str, domain: str) -> str:
     """
 
 
+# Public wrapper - returns parsed ExtractionPlan
+async def plan_extraction(text_preview: str, domain: str) -> ExtractionPlan:
+    """Plan extraction strategy using meta-reasoning.
+
+    Args:
+        text_preview: Preview of text to analyze
+        domain: Domain context for extraction
+
+    Returns:
+        ExtractionPlan with strategy and categories
+    """
+    response = await _plan_extraction_call(text_preview=text_preview, domain=domain)
+    return response.parse()
+
+
 # Step 2: Extract entities with reasoning (CoT + Few-shot)
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=list[EntityWithReasoning],
 )
-async def extract_entities_with_reasoning(text: str, strategy: str, categories: str) -> str:
+async def _extract_entities_with_reasoning_call(text: str, strategy: str, categories: str) -> str:
     """Extract entities with chain-of-thought reasoning."""
     return f"""
     Extract entities with detailed reasoning. Think step-by-step for each entity.
@@ -119,13 +143,30 @@ async def extract_entities_with_reasoning(text: str, strategy: str, categories: 
     """
 
 
+# Public wrapper - returns parsed list[EntityWithReasoning]
+async def extract_entities_with_reasoning(text: str, strategy: str, categories: str) -> list[EntityWithReasoning]:
+    """Extract entities with chain-of-thought reasoning.
+
+    Args:
+        text: Text to extract entities from
+        strategy: Extraction strategy from plan
+        categories: Entity categories to focus on
+
+    Returns:
+        List of entities with reasoning and confidence scores
+    """
+    response = await _extract_entities_with_reasoning_call(text=text, strategy=strategy, categories=categories)
+    return response.parse()
+
+
 # Step 3: Multi-pass relationship extraction
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=list[RelationshipWithReasoning],
 )
-async def extract_relationships_multipass(text: str, entities: str, patterns: str) -> str:
+async def _extract_relationships_multipass_call(text: str, entities: str, patterns: str) -> str:
     """Extract relationships using multi-pass reasoning."""
     return f"""
     Extract relationships between entities. Use multi-pass reasoning.
@@ -155,13 +196,30 @@ async def extract_relationships_multipass(text: str, entities: str, patterns: st
     """
 
 
+# Public wrapper - returns parsed list[RelationshipWithReasoning]
+async def extract_relationships_multipass(text: str, entities: str, patterns: str) -> list[RelationshipWithReasoning]:
+    """Extract relationships using multi-pass reasoning.
+
+    Args:
+        text: Text to extract relationships from
+        entities: List of identified entities
+        patterns: Relationship patterns to look for
+
+    Returns:
+        List of relationships with reasoning and confidence scores
+    """
+    response = await _extract_relationships_multipass_call(text=text, entities=entities, patterns=patterns)
+    return response.parse()
+
+
 # Step 4: Self-consistency validation
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=ConsistencyCheck,
 )
-async def validate_consistency(text: str, extraction1: str, extraction2: str, extraction3: str) -> str:
+async def _validate_consistency_call(text: str, extraction1: str, extraction2: str, extraction3: str) -> str:
     """Validate extraction consistency."""
     return f"""
     Validate extraction consistency across multiple interpretations.
@@ -180,6 +238,28 @@ async def validate_consistency(text: str, extraction1: str, extraction2: str, ex
 
     Higher consistency = higher confidence in extraction.
     """
+
+
+# Public wrapper - returns parsed ConsistencyCheck
+async def validate_consistency(text: str, extraction1: str, extraction2: str, extraction3: str) -> ConsistencyCheck:
+    """Validate extraction consistency across multiple attempts.
+
+    Args:
+        text: Original text being analyzed
+        extraction1: First extraction attempt results
+        extraction2: Second extraction attempt results
+        extraction3: Third extraction attempt results
+
+    Returns:
+        ConsistencyCheck with consistent/conflicting entities and confidence boost
+    """
+    response = await _validate_consistency_call(
+        text=text,
+        extraction1=extraction1,
+        extraction2=extraction2,
+        extraction3=extraction3
+    )
+    return response.parse()
 
 
 # Enhanced main extraction function

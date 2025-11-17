@@ -23,8 +23,9 @@ class SearchQuery(BaseModel):
     """A single search query for research."""
 
     query: str = Field(..., description="The search query to execute")
-    search_type: str = Field(default="auto", description="Type of search: 'auto', 'keyword', or 'neural'")
-    category: Any | None = Field(default=None, description="Optional category for more targeted results")
+    # Note: All fields must be required for OpenAI schema validation
+    search_type: str = Field(..., description="Type of search: 'auto', 'keyword', or 'neural'")
+    category: Any | None = Field(..., description="Optional category for more targeted results (null if not specified)")
 
 
 class SearchQueriesResponse(BaseModel):
@@ -38,7 +39,8 @@ class ResearchSection(BaseModel):
 
     title: str = Field(..., description="Section title")
     content: str = Field(..., description="Section content")
-    sources_used: list[str] = Field(default_factory=list, description="URLs of sources used in this section")
+    # Note: All fields must be required for OpenAI schema validation
+    sources_used: list[str] = Field(..., description="URLs of sources used in this section (empty list if none)")
 
 
 class ResearchReportResponse(BaseModel):
@@ -51,13 +53,20 @@ class ResearchReportResponse(BaseModel):
     word_count: int = Field(..., description="Total word count of the report")
 
 
-# Step 1: Generate search queries
+# Rebuild models to resolve forward references
+SearchQuery.model_rebuild()
+SearchQueriesResponse.model_rebuild()
+ResearchSection.model_rebuild()
+ResearchReportResponse.model_rebuild()
+
+
+# Step 1: Generate search queries - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=SearchQueriesResponse,
 )
-async def generate_search_queries(topic: str, depth: str = "comprehensive", num_queries: int = 5) -> str:
+async def _generate_search_queries_call(topic: str, depth: str = "comprehensive", num_queries: int = 5) -> str:
     """Generate diverse search queries for research."""
     return f"""
     You are a research expert planning searches for a comprehensive report on a topic.
@@ -83,13 +92,29 @@ async def generate_search_queries(topic: str, depth: str = "comprehensive", num_
     """
 
 
-# Step 2: Search and collect information
+# Public wrapper for generate_search_queries
+async def generate_search_queries(topic: str, depth: str = "comprehensive", num_queries: int = 5) -> SearchQueriesResponse:
+    """Generate diverse search queries for research.
+
+    Args:
+        topic: Topic to research
+        depth: Research depth level
+        num_queries: Number of queries to generate
+
+    Returns:
+        SearchQueriesResponse with generated queries
+    """
+    response = await _generate_search_queries_call(topic=topic, depth=depth, num_queries=num_queries)
+    return response.parse()
+
+
+# Step 2: Search and collect information - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     tools=[exa_search, exa_answer] if EXA_AVAILABLE else [],
 )
-async def collect_research_data(topic: str, queries: str) -> str:
+async def _collect_research_data_call(topic: str, queries: str) -> str:
     """Collect research data using Exa search."""
     return f"""
     You are a research assistant collecting information on a topic.
@@ -112,13 +137,28 @@ async def collect_research_data(topic: str, queries: str) -> str:
     """
 
 
-# Step 3: Synthesize research report
+# Public wrapper for collect_research_data
+async def collect_research_data(topic: str, queries: str):
+    """Collect research data using Exa search.
+
+    Args:
+        topic: Topic being researched
+        queries: Search queries to execute
+
+    Returns:
+        Research data collected from searches
+    """
+    response = await _collect_research_data_call(topic=topic, queries=queries)
+    return response  # No parse() needed as this doesn't have a format model
+
+
+# Step 3: Synthesize research report - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=ResearchReportResponse,
 )
-async def synthesize_research_report(topic: str, research_data: str, style: str, audience: str, target_words: int) -> str:
+async def _synthesize_research_report_call(topic: str, research_data: str, style: str, audience: str, target_words: int) -> str:
     """Synthesize collected data into a research report."""
     return f"""
     You are an expert research writer creating a comprehensive report.
@@ -154,6 +194,28 @@ async def synthesize_research_report(topic: str, research_data: str, style: str,
 
     Create a comprehensive report of approximately {target_words} words.
     """
+
+
+# Public wrapper for synthesize_research_report
+async def synthesize_research_report(
+    topic: str, research_data: str, style: str, audience: str, target_words: int
+) -> ResearchReportResponse:
+    """Synthesize collected data into a research report.
+
+    Args:
+        topic: Topic of research
+        research_data: Collected research data
+        style: Writing style
+        audience: Target audience
+        target_words: Target word count
+
+    Returns:
+        ResearchReportResponse with complete report
+    """
+    response = await _synthesize_research_report_call(
+        topic=topic, research_data=research_data, style=style, audience=audience, target_words=target_words
+    )
+    return response.parse()
 
 
 async def research_topic(

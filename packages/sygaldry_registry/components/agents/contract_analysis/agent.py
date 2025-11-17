@@ -52,7 +52,7 @@ class ContractObligation(BaseModel):
     party: str = Field(..., description="Party responsible for the obligation")
     obligation_type: str = Field(..., description="Type of obligation (e.g., 'payment', 'delivery', 'reporting')")
     description: str = Field(..., description="What must be done")
-    deadline: Optional[str] = Field(None, description="Deadline or timeline for the obligation")
+    deadline: str | None = Field(..., description="Deadline or timeline for the obligation (null if not specified)")
     consequences: str = Field(..., description="Consequences of failing to meet this obligation")
     recurring: bool = Field(..., description="Whether this is a one-time or recurring obligation")
 
@@ -63,9 +63,9 @@ class KeyTermExtraction(BaseModel):
     terms: list[ContractClause] = Field(..., description="List of key contract clauses")
     contract_type: str = Field(..., description="Type of contract (e.g., 'employment', 'license', 'service')")
     parties: list[str] = Field(..., description="Parties involved in the contract")
-    effective_date: Optional[str] = Field(None, description="When the contract becomes effective")
-    expiration_date: Optional[str] = Field(None, description="When the contract expires")
-    jurisdiction: Optional[str] = Field(None, description="Legal jurisdiction governing the contract")
+    effective_date: str | None = Field(..., description="When the contract becomes effective (null if not specified)")
+    expiration_date: str | None = Field(..., description="When the contract expires (null if not specified)")
+    jurisdiction: str | None = Field(..., description="Legal jurisdiction governing the contract (null if not specified)")
 
 
 class RiskAnalysis(BaseModel):
@@ -102,13 +102,23 @@ class ContractAnalysisResult(BaseModel):
     parties: list[str] = Field(..., description="Parties to the contract")
 
 
-# Step 1: Extract key terms and clauses
+# Rebuild models to resolve forward references
+ContractClause.model_rebuild()
+RiskAssessment.model_rebuild()
+ContractObligation.model_rebuild()
+KeyTermExtraction.model_rebuild()
+RiskAnalysis.model_rebuild()
+ObligationExtraction.model_rebuild()
+ContractAnalysisResult.model_rebuild()
+
+
+# Step 1: Extract key terms and clauses - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=KeyTermExtraction,
 )
-async def extract_key_terms(contract_text: str, focus_areas: list[str] | None = None) -> str:
+async def _extract_key_terms_call(contract_text: str, focus_areas: list[str] | None = None) -> str:
     """Extract key terms and clauses from contract."""
     focus = f"\n\nSpecific focus areas: {', '.join(focus_areas)}" if focus_areas else ""
 
@@ -138,13 +148,20 @@ Identify:
 For each clause, classify its importance and provide a plain-language explanation."""
 
 
-# Step 2: Identify risks
+# Public wrapper for extract_key_terms
+async def extract_key_terms(contract_text: str, focus_areas: list[str] | None = None) -> KeyTermExtraction:
+    """Extract key terms and clauses from contract."""
+    response = await _extract_key_terms_call(contract_text=contract_text, focus_areas=focus_areas)
+    return response.parse()
+
+
+# Step 2: Identify risks - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=RiskAnalysis,
 )
-async def identify_risks(contract_text: str, key_terms: str) -> str:
+async def _identify_risks_call(contract_text: str, key_terms: str) -> str:
     """Identify risks in the contract."""
     return f"""You are an expert contract lawyer performing risk assessment.
 
@@ -182,13 +199,20 @@ Perform a comprehensive risk analysis:
 Be thorough and err on the side of identifying potential issues."""
 
 
-# Step 3: Extract obligations
+# Public wrapper for identify_risks
+async def identify_risks(contract_text: str, key_terms: str) -> RiskAnalysis:
+    """Identify risks in the contract."""
+    response = await _identify_risks_call(contract_text=contract_text, key_terms=key_terms)
+    return response.parse()
+
+
+# Step 3: Extract obligations - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=ObligationExtraction,
 )
-async def extract_obligations(contract_text: str, parties: list[str]) -> str:
+async def _extract_obligations_call(contract_text: str, parties: list[str]) -> str:
     """Extract all contractual obligations."""
     parties_str = ", ".join(parties)
 
@@ -226,6 +250,13 @@ Extract ALL obligations for each party:
 4. Count obligations by party to assess balance
 
 Be comprehensive and extract every obligation, even minor ones."""
+
+
+# Public wrapper for extract_obligations
+async def extract_obligations(contract_text: str, parties: list[str]) -> ObligationExtraction:
+    """Extract all contractual obligations."""
+    response = await _extract_obligations_call(contract_text=contract_text, parties=parties)
+    return response.parse()
 
 
 # Main contract analysis function

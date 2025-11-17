@@ -29,12 +29,13 @@ class CandidateProfile(BaseModel):
     """Candidate profile specification."""
 
     role: str = Field(..., description="Target role (e.g., 'Engineer', 'SDR', 'ML Engineer')")
-    skills: list[str] = Field(default_factory=list, description="Required skills")
-    experience: list[str] = Field(default_factory=list, description="Experience requirements")
-    education: str | None = Field(None, description="Education requirements")
-    location: str | None = Field(None, description="Geographic location preference")
-    industry_experience: str | None = Field(None, description="Specific industry experience")
-    additional_qualifications: list[str] = Field(default_factory=list, description="Additional qualifications")
+    # Note: All fields must be required for OpenAI schema validation
+    skills: list[str] = Field(..., description="Required skills (empty list if none)")
+    experience: list[str] = Field(..., description="Experience requirements (empty list if none)")
+    education: str | None = Field(..., description="Education requirements (null if not specified)")
+    location: str | None = Field(..., description="Geographic location preference (null if not specified)")
+    industry_experience: str | None = Field(..., description="Specific industry experience (null if not specified)")
+    additional_qualifications: list[str] = Field(..., description="Additional qualifications (empty list if none)")
 
 
 class RecruitingSearchResponse(BaseModel):
@@ -42,20 +43,27 @@ class RecruitingSearchResponse(BaseModel):
 
     webset_id: str = Field(..., description="ID of the created webset")
     search_query: str = Field(..., description="Search query used")
-    candidate_criteria: list[str] = Field(default_factory=list, description="Candidate qualification criteria")
-    enrichments: list[str] = Field(default_factory=list, description="Profile enrichments requested")
-    estimated_candidates: int | None = Field(None, description="Estimated number of candidates")
+    # Note: All fields must be required for OpenAI schema validation
+    candidate_criteria: list[str] = Field(..., description="Candidate qualification criteria (empty list if none)")
+    enrichments: list[str] = Field(..., description="Profile enrichments requested (empty list if none)")
+    estimated_candidates: int | None = Field(..., description="Estimated number of candidates (null if unknown)")
     status: str = Field(..., description="Current status of the search")
     search_type: str = Field(..., description="Type of candidate search performed")
 
 
+# Rebuild models to resolve forward references
+CandidateProfile.model_rebuild()
+RecruitingSearchResponse.model_rebuild()
+
+
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=RecruitingSearchResponse,
     tools=[create_webset, get_webset_status, list_webset_items] if create_webset else [],
 )
-async def recruiting_assistant_agent(
+async def _recruiting_assistant_agent_call(
     role: str,
     skills: list[str] | None = None,
     experience: list[str] | None = None,
@@ -128,6 +136,48 @@ Industry Experience: {industry_experience}
 Additional Qualifications: {additional_str}
 
 Create a webset to find candidates matching these requirements."""
+
+
+# Public wrapper - returns parsed RecruitingSearchResponse
+async def recruiting_assistant_agent(
+    role: str,
+    skills: list[str] | None = None,
+    experience: list[str] | None = None,
+    education: str | None = None,
+    location: str | None = None,
+    industry_experience: str | None = None,
+    additional_qualifications: list[str] | None = None,
+    llm_provider: str = "openai",
+    model: str = "gpt-4o-mini",
+) -> RecruitingSearchResponse:
+    """Find qualified candidates using Exa websets.
+
+    Args:
+        role: Target role or position
+        skills: Required technical or soft skills
+        experience: Specific experience requirements
+        education: Educational background requirements
+        location: Geographic location preference
+        industry_experience: Specific industry experience needed
+        additional_qualifications: Other qualifications or nice-to-haves
+        llm_provider: LLM provider to use
+        model: Model to use
+
+    Returns:
+        RecruitingSearchResponse with webset details
+    """
+    response = await _recruiting_assistant_agent_call(
+        role=role,
+        skills=skills,
+        experience=experience,
+        education=education,
+        location=location,
+        industry_experience=industry_experience,
+        additional_qualifications=additional_qualifications,
+        llm_provider=llm_provider,
+        model=model
+    )
+    return response.parse()
 
 
 # Convenience functions for common recruiting searches

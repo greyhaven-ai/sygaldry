@@ -9,11 +9,11 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 try:
-    from lilypad import lilypad_call
+    from lilypad import trace
     LILYPAD_AVAILABLE = True
 except ImportError:
     LILYPAD_AVAILABLE = False
-    def lilypad_call(*args, **kwargs):
+    def trace():
         """Decorator fallback when lilypad is not available."""
         def decorator(func):
             return func
@@ -78,7 +78,8 @@ class TaskAnalysis(BaseModel):
     blockers: list[str] = Field(..., description="Potential blockers or obstacles")
     quick_wins_potential: bool = Field(..., description="Whether this is a quick win")
     delegation_potential: bool = Field(..., description="Whether this can be delegated")
-    deadline: Optional[str] = Field(None, description="Deadline if applicable")
+    # Note: All fields must be required for OpenAI schema validation
+    deadline: str | None = Field(..., description="Deadline if applicable (null if no deadline)")
     estimated_duration: str = Field(..., description="Estimated time to complete")
 
 
@@ -109,10 +110,12 @@ class TaskPrioritization(BaseModel):
 
     analysis_timestamp: str = Field(..., description="When this analysis was performed")
     total_tasks: int = Field(..., description="Total number of tasks analyzed")
-    task_analyses: list[TaskAnalysis] = Field(..., description="Individual task analyses")
+    # Note: Field(...) without description for nested models to avoid OpenAI schema error
+    # OpenAI rejects $ref with additional keywords like 'description'
+    task_analyses: list[TaskAnalysis] = Field(...)
     prioritized_order: list[str] = Field(..., description="Recommended task order by ID")
-    time_allocation: list[TimeBlock] = Field(..., description="Recommended time blocks")
-    strategy: PrioritizationStrategy = Field(..., description="Prioritization strategy")
+    time_allocation: list[TimeBlock] = Field(...)
+    strategy: PrioritizationStrategy = Field(...)
     urgent_important_count: int = Field(..., description="Count of urgent & important tasks")
     quick_wins: list[str] = Field(..., description="Task IDs identified as quick wins")
     delegation_candidates: list[str] = Field(..., description="Task IDs that can be delegated")
@@ -121,6 +124,13 @@ class TaskPrioritization(BaseModel):
     capacity_assessment: str = Field(..., description="Assessment of capacity vs. workload")
     recommendations: list[str] = Field(..., description="Key recommendations")
     confidence_score: float = Field(..., description="Confidence in prioritization (0-1)")
+
+
+# Rebuild models to resolve forward references
+TaskAnalysis.model_rebuild()
+TimeBlock.model_rebuild()
+PrioritizationStrategy.model_rebuild()
+TaskPrioritization.model_rebuild()
 
 
 def _get_analyze_tasks_prompt(tasks: list[str], context: str = "") -> str:
@@ -189,14 +199,22 @@ def _get_analyze_tasks_prompt(tasks: list[str], context: str = "") -> str:
     """
 
 
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=list[TaskAnalysis],
 )
-def analyze_tasks(tasks: list[str], context: str = "") -> str:
-    """Analyze individual tasks for prioritization."""
+async def _analyze_tasks_call(tasks: list[str], context: str = "") -> str:
+    """Internal LLM call for task analysis."""
     return _get_analyze_tasks_prompt(tasks, context)
+
+
+# Public wrapper - returns parsed list[TaskAnalysis]
+async def analyze_tasks(tasks: list[str], context: str = "") -> list[TaskAnalysis]:
+    """Analyze individual tasks for prioritization."""
+    response = await _analyze_tasks_call(tasks=tasks, context=context)
+    return response.parse()
 
 
 def _get_create_time_allocation_prompt(
@@ -250,16 +268,28 @@ def _get_create_time_allocation_prompt(
     """
 
 
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=list[TimeBlock],
 )
-def create_time_allocation(
+async def _create_time_allocation_call(
     task_analyses: list[TaskAnalysis], available_hours: float = 8.0, constraints: str = ""
 ) -> str:
-    """Create optimal time allocation for prioritized tasks."""
+    """Internal LLM call for time allocation."""
     return _get_create_time_allocation_prompt(task_analyses, available_hours, constraints)
+
+
+# Public wrapper - returns parsed list[TimeBlock]
+async def create_time_allocation(
+    task_analyses: list[TaskAnalysis], available_hours: float = 8.0, constraints: str = ""
+) -> list[TimeBlock]:
+    """Create optimal time allocation for prioritized tasks."""
+    response = await _create_time_allocation_call(
+        task_analyses=task_analyses, available_hours=available_hours, constraints=constraints
+    )
+    return response.parse()
 
 
 def _get_recommend_strategy_prompt(task_analyses: list[TaskAnalysis], goals: str = "", context: str = "") -> str:
@@ -317,14 +347,22 @@ def _get_recommend_strategy_prompt(task_analyses: list[TaskAnalysis], goals: str
     """
 
 
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=PrioritizationStrategy,
 )
-def recommend_strategy(task_analyses: list[TaskAnalysis], goals: str = "", context: str = "") -> str:
-    """Recommend optimal prioritization strategy."""
+async def _recommend_strategy_call(task_analyses: list[TaskAnalysis], goals: str = "", context: str = "") -> str:
+    """Internal LLM call for strategy recommendation."""
     return _get_recommend_strategy_prompt(task_analyses, goals, context)
+
+
+# Public wrapper - returns parsed PrioritizationStrategy
+async def recommend_strategy(task_analyses: list[TaskAnalysis], goals: str = "", context: str = "") -> PrioritizationStrategy:
+    """Recommend optimal prioritization strategy."""
+    response = await _recommend_strategy_call(task_analyses=task_analyses, goals=goals, context=context)
+    return response.parse()
 
 
 def _get_synthesize_prioritization_prompt(
@@ -389,22 +427,43 @@ def _get_synthesize_prioritization_prompt(
     """
 
 
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=TaskPrioritization,
 )
-def synthesize_prioritization(
+async def _synthesize_prioritization_call(
     tasks: list[str],
     task_analyses: list[TaskAnalysis],
     time_allocation: list[TimeBlock],
     strategy: PrioritizationStrategy,
     available_hours: float,
 ) -> str:
-    """Synthesize complete task prioritization."""
+    """Internal LLM call for prioritization synthesis."""
     return _get_synthesize_prioritization_prompt(tasks, task_analyses, time_allocation, strategy, available_hours)
 
 
+# Public wrapper - returns parsed TaskPrioritization
+async def synthesize_prioritization(
+    tasks: list[str],
+    task_analyses: list[TaskAnalysis],
+    time_allocation: list[TimeBlock],
+    strategy: PrioritizationStrategy,
+    available_hours: float,
+) -> TaskPrioritization:
+    """Synthesize complete task prioritization."""
+    response = await _synthesize_prioritization_call(
+        tasks=tasks,
+        task_analyses=task_analyses,
+        time_allocation=time_allocation,
+        strategy=strategy,
+        available_hours=available_hours,
+    )
+    return response.parse()
+
+
+@trace()
 async def task_prioritization_agent(
     tasks: list[str],
     context: str = "",

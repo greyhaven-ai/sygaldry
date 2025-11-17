@@ -22,7 +22,9 @@ class PIIEntity(BaseModel):
 class PIIDetectionResponse(BaseModel):
     """Response containing detected PII entities."""
 
-    entities: list[PIIEntity] = Field(..., description="List of detected PII entities")
+    # Note: Field(...) without description for nested models to avoid OpenAI schema error
+    # OpenAI rejects $ref with additional keywords like 'description'
+    entities: list[PIIEntity] = Field(...)
     pii_types_found: list[str] = Field(..., description="Unique types of PII found")
     total_pii_count: int = Field(..., description="Total number of PII instances found")
     risk_level: Literal["low", "medium", "high", "critical"] = Field(..., description="Overall risk level")
@@ -33,10 +35,12 @@ class ScrubbedTextResponse(BaseModel):
 
     original_text: str = Field(..., description="Original text before scrubbing")
     scrubbed_text: str = Field(..., description="Text with PII removed or masked")
-    entities_removed: list[PIIEntity] = Field(..., description="List of PII entities that were removed")
+    # Note: Field(...) without description for nested models
+    entities_removed: list[PIIEntity] = Field(...)
     scrubbing_method: str = Field(..., description="Method used for scrubbing")
     reversible: bool = Field(..., description="Whether the scrubbing can be reversed")
-    mapping: dict[str, str] | None = Field(default=None, description="Mapping of original to scrubbed values if reversible")
+    # Note: All fields must be required for OpenAI schema validation
+    mapping: dict[str, str] | None = Field(..., description="Mapping of original to scrubbed values if reversible (null if not reversible)")
 
 
 # Regex patterns for common PII
@@ -48,6 +52,12 @@ PII_PATTERNS = {
     "ip_address": r'\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b',
     "date_of_birth": r'\b(?:0[1-9]|1[0-2])[-/](?:0[1-9]|[12][0-9]|3[01])[-/](?:19|20)\d{2}\b',
 }
+
+
+# Rebuild models to resolve forward references
+PIIEntity.model_rebuild()
+PIIDetectionResponse.model_rebuild()
+ScrubbedTextResponse.model_rebuild()
 
 
 # Tool for regex-based PII detection
@@ -81,12 +91,13 @@ async def detect_pii_regex(text: str) -> list[PIIEntity]:
 
 
 # Step 1: Detect PII using LLM
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=PIIDetectionResponse,
 )
-async def detect_pii_llm(text: str) -> str:
+async def _detect_pii_llm_call(text: str) -> str:
     """Detect PII using LLM analysis."""
     return f"""You are a privacy expert specializing in detecting Personally Identifiable Information (PII).
 
@@ -125,13 +136,28 @@ Assess the overall risk level based on:
 - Potential for identity theft or privacy breach"""
 
 
+# Public wrapper - returns parsed PIIDetectionResponse
+async def detect_pii_llm(text: str) -> PIIDetectionResponse:
+    """Detect PII using LLM analysis.
+
+    Args:
+        text: Text to analyze for PII
+
+    Returns:
+        PIIDetectionResponse with detected entities and risk level
+    """
+    response = await _detect_pii_llm_call(text=text)
+    return response.parse()
+
+
 # Step 2: Scrub PII from text
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=ScrubbedTextResponse,
 )
-async def scrub_pii(text: str, entities: str, method: str) -> str:
+async def _scrub_pii_call(text: str, entities: str, method: str) -> str:
     """Scrub PII from text using specified method."""
     return f"""You are a privacy expert tasked with removing PII from text.
 
@@ -156,6 +182,22 @@ Requirements:
 5. If using synthetic data, make it realistic but clearly not real
 
 Return the scrubbed text along with details about what was removed."""
+
+
+# Public wrapper - returns parsed ScrubbedTextResponse
+async def scrub_pii(text: str, entities: str, method: str) -> ScrubbedTextResponse:
+    """Scrub PII from text using specified method.
+
+    Args:
+        text: Original text containing PII
+        entities: Detected PII entities as string
+        method: Scrubbing method to use
+
+    Returns:
+        ScrubbedTextResponse with scrubbed text and metadata
+    """
+    response = await _scrub_pii_call(text=text, entities=entities, method=method)
+    return response.parse()
 
 
 # Main PII scrubbing function

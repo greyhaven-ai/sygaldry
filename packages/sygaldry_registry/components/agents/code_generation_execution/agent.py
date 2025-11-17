@@ -16,11 +16,11 @@ class CodeAnalysis(BaseModel):
     """Analysis of generated code for safety and correctness."""
 
     is_safe: bool = Field(..., description="Whether the code is safe to execute")
-    safety_concerns: list[str] = Field(default_factory=list, description="List of safety concerns if any")
-    imports_used: list[str] = Field(default_factory=list, description="Python imports used in the code")
-    has_file_operations: bool = Field(default=False, description="Whether code performs file operations")
-    has_network_operations: bool = Field(default=False, description="Whether code performs network operations")
-    has_system_calls: bool = Field(default=False, description="Whether code makes system calls")
+    safety_concerns: list[str] = Field(..., description="List of safety concerns (empty list if none)")
+    imports_used: list[str] = Field(..., description="Python imports used in the code (empty list if none)")
+    has_file_operations: bool = Field(..., description="Whether code performs file operations")
+    has_network_operations: bool = Field(..., description="Whether code performs network operations")
+    has_system_calls: bool = Field(..., description="Whether code makes system calls")
     complexity_score: int = Field(..., ge=1, le=10, description="Code complexity score (1-10)")
 
 
@@ -28,20 +28,26 @@ class GeneratedCode(BaseModel):
     """Generated code with metadata."""
 
     code: str = Field(..., description="The generated Python code")
-    language: str = Field(default="python", description="Programming language")
+    language: str = Field(..., description="Programming language")
     explanation: str = Field(..., description="Explanation of what the code does")
-    requirements: list[str] = Field(default_factory=list, description="Required packages/dependencies")
-    example_usage: str | None = Field(default=None, description="Example of how to use the code")
+    requirements: list[str] = Field(..., description="Required packages/dependencies (empty list if none)")
+    example_usage: str | None = Field(..., description="Example of how to use the code (null if not provided)")
 
 
 class CodeExecutionResult(BaseModel):
     """Result of code execution."""
 
     success: bool = Field(..., description="Whether execution was successful")
-    output: str | None = Field(default=None, description="Standard output from execution")
-    error: str | None = Field(default=None, description="Error message if execution failed")
+    output: str | None = Field(..., description="Standard output from execution (null if none)")
+    error: str | None = Field(..., description="Error message if execution failed (null if none)")
     execution_time: float = Field(..., description="Execution time in seconds")
-    return_value: Any = Field(default=None, description="Return value from the code")
+    return_value: Any | None = Field(..., description="Return value from the code (null if none)")
+
+
+class RecommendationsResponse(BaseModel):
+    """Recommendations for code improvement."""
+
+    recommendations: list[str] = Field(..., description="List of specific, actionable recommendations")
 
 
 class CodeGenerationResponse(BaseModel):
@@ -50,8 +56,16 @@ class CodeGenerationResponse(BaseModel):
     task_description: str = Field(..., description="Description of the task")
     generated_code: GeneratedCode = Field(..., description="The generated code")
     code_analysis: CodeAnalysis = Field(..., description="Safety and complexity analysis")
-    execution_result: CodeExecutionResult | None = Field(default=None, description="Execution result if code was run")
-    recommendations: list[str] = Field(default_factory=list, description="Recommendations for improvement")
+    execution_result: CodeExecutionResult | None = Field(..., description="Execution result if code was run (null if not executed)")
+    recommendations: list[str] = Field(..., description="Recommendations for improvement (empty list if none)")
+
+
+# Rebuild models to resolve forward references
+RecommendationsResponse.model_rebuild()
+CodeAnalysis.model_rebuild()
+GeneratedCode.model_rebuild()
+CodeExecutionResult.model_rebuild()
+CodeGenerationResponse.model_rebuild()
 
 
 # Tool for executing Python code safely
@@ -121,13 +135,13 @@ async def execute_python_code(code: str, timeout: int = 30, allowed_imports: lis
         return CodeExecutionResult(success=False, error=f"Execution error: {str(e)}", execution_time=time.time() - start_time)
 
 
-# Step 1: Generate code for the task
+# Step 1: Generate code for the task - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=GeneratedCode,
 )
-async def generate_code(task: str, requirements: str = "None specified", constraints: str = "None specified") -> str:
+async def _generate_code_call(task: str, requirements: str = "None specified", constraints: str = "None specified") -> str:
     """Generate Python code for a given task."""
     return f"""
     You are an expert Python programmer. Generate clean, efficient, and well-documented code for the following task.
@@ -149,13 +163,20 @@ async def generate_code(task: str, requirements: str = "None specified", constra
     """
 
 
-# Step 2: Analyze code for safety and complexity
+# Public wrapper for generate_code
+async def generate_code(task: str, requirements: str = "None specified", constraints: str = "None specified") -> GeneratedCode:
+    """Generate Python code for a given task."""
+    response = await _generate_code_call(task=task, requirements=requirements, constraints=constraints)
+    return response.parse()
+
+
+# Step 2: Analyze code for safety and complexity - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=CodeAnalysis,
 )
-async def analyze_code_safety(code: str) -> str:
+async def _analyze_code_safety_call(code: str) -> str:
     """Analyze code for safety and complexity."""
     return f"""
     You are a code security and quality analyst. Analyze the following Python code for safety and complexity.
@@ -176,12 +197,20 @@ async def analyze_code_safety(code: str) -> str:
     """
 
 
-# Step 3: Generate recommendations
+# Public wrapper for analyze_code_safety
+async def analyze_code_safety(code: str) -> CodeAnalysis:
+    """Analyze code for safety and complexity."""
+    response = await _analyze_code_safety_call(code=code)
+    return response.parse()
+
+
+# Step 3: Generate recommendations - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
+    format=RecommendationsResponse,
 )
-async def generate_recommendations(task: str, analysis: str, execution_result: str) -> str:
+async def _generate_recommendations_call(task: str, analysis: str, execution_result: str) -> str:
     """Generate recommendations for code improvement."""
     return f"""
     Based on the code analysis and execution results, provide recommendations for improvement.
@@ -196,9 +225,14 @@ async def generate_recommendations(task: str, analysis: str, execution_result: s
     3. Security enhancements
     4. Better error handling
     5. Documentation improvements
-
-    Return a list of recommendation strings.
     """
+
+
+# Public wrapper for generate_recommendations
+async def generate_recommendations(task: str, analysis: str, execution_result: str) -> RecommendationsResponse:
+    """Generate recommendations for code improvement."""
+    response = await _generate_recommendations_call(task=task, analysis=analysis, execution_result=execution_result)
+    return response.parse()
 
 
 @trace()
@@ -260,7 +294,7 @@ async def generate_and_execute_code(
 
     # Step 5: Generate recommendations
     exec_result_str = str(execution_result.model_dump()) if execution_result else "Not executed"
-    recommendations = await generate_recommendations(
+    recommendations_response = await generate_recommendations(
         task=task, analysis=str(code_analysis.model_dump()), execution_result=exec_result_str
     )
 
@@ -269,7 +303,7 @@ async def generate_and_execute_code(
         generated_code=generated_code,
         code_analysis=code_analysis,
         execution_result=execution_result,
-        recommendations=recommendations,
+        recommendations=recommendations_response.recommendations,
     )
 
 

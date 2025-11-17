@@ -114,12 +114,12 @@ class PlatformContent(BaseModel):
     platform: SocialPlatform = Field(..., description="Target platform")
     content_type: ContentType = Field(..., description="Type of content")
     primary_text: str = Field(..., description="Main text content")
-    secondary_text: str | None = Field(None, description="Secondary text (e.g., first comment)")
+    secondary_text: str | None = Field(..., description="Secondary text (e.g., first comment) (null if not needed)")
     hashtags: list[str] = Field(..., description="Relevant hashtags")
-    mentions: list[str] = Field(default_factory=list, description="Accounts to mention")
+    mentions: list[str] = Field(..., description="Accounts to mention (empty list if none)")
     call_to_action: str = Field(..., description="Call to action")
-    visual_description: str | None = Field(None, description="Description of visual elements")
-    alt_text: str | None = Field(None, description="Accessibility alt text")
+    visual_description: str | None = Field(..., description="Description of visual elements (null if text-only)")
+    alt_text: str | None = Field(..., description="Accessibility alt text (null if not needed)")
     posting_time: PostingTime = Field(..., description="Recommended posting time")
     engagement_hooks: list[str] = Field(..., description="Elements to drive engagement")
     character_count: int = Field(..., description="Character count for the post")
@@ -170,12 +170,22 @@ class SocialMediaCampaign(BaseModel):
     growth_projections: dict[str, str] = Field(..., description="Expected growth metrics")
 
 
+# Rebuild models to resolve forward references
+TrendAnalysis.model_rebuild()
+EngagementAnalysis.model_rebuild()
+PlatformStrategy.model_rebuild()
+PlatformContent.model_rebuild()
+ContentOptimization.model_rebuild()
+ContentCalendar.model_rebuild()
+SocialMediaCampaign.model_rebuild()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=TrendAnalysis,
 )
-def analyze_current_trends(
+async def _analyze_current_trends_call(
     campaign_goal: str,
     target_audience: str,
     industry: str,
@@ -221,12 +231,29 @@ def analyze_current_trends(
     """
 
 
+# Public wrapper for analyze_current_trends
+async def analyze_current_trends(
+    campaign_goal: str,
+    target_audience: str,
+    industry: str,
+    platforms: list[str],
+    time_period: str = "next 30 days",
+    brand_values: str = "",
+) -> TrendAnalysis:
+    """Analyze current social media trends relevant to the campaign."""
+    response = await _analyze_current_trends_call(
+        campaign_goal=campaign_goal, target_audience=target_audience, industry=industry,
+        platforms=platforms, time_period=time_period, brand_values=brand_values
+    )
+    return response.parse()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=list[PlatformStrategy],
 )
-def develop_platform_strategies(
+async def _develop_platform_strategies_call(
     campaign_goal: str,
     target_audience: str,
     brand_voice: str,
@@ -280,12 +307,32 @@ def develop_platform_strategies(
     """
 
 
+# Public wrapper for develop_platform_strategies
+async def develop_platform_strategies(
+    campaign_goal: str,
+    target_audience: str,
+    brand_voice: str,
+    platforms: list[str],
+    budget: str = "",
+    timeline: str = "",
+    trend_analysis: TrendAnalysis = None,
+    competitive_landscape: str = "",
+) -> list[PlatformStrategy]:
+    """Develop enhanced platform-specific social media strategies."""
+    response = await _develop_platform_strategies_call(
+        campaign_goal=campaign_goal, target_audience=target_audience, brand_voice=brand_voice,
+        platforms=platforms, budget=budget, timeline=timeline,
+        trend_analysis=trend_analysis, competitive_landscape=competitive_landscape
+    )
+    return response.parse()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=EngagementAnalysis,
 )
-def predict_content_engagement(
+async def _predict_content_engagement_call(
     platform: str,
     content_type: str,
     content: str,
@@ -334,12 +381,31 @@ def predict_content_engagement(
     """
 
 
+# Public wrapper for predict_content_engagement
+async def predict_content_engagement(
+    platform: str,
+    content_type: str,
+    content: str,
+    target_audience: str,
+    posting_time: str,
+    current_trends: str = "",
+    historical_performance: str = "",
+) -> EngagementAnalysis:
+    """Predict engagement metrics for social media content."""
+    response = await _predict_content_engagement_call(
+        platform=platform, content_type=content_type, content=content,
+        target_audience=target_audience, posting_time=posting_time,
+        current_trends=current_trends, historical_performance=historical_performance
+    )
+    return response.parse()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=ContentOptimization,
 )
-def optimize_content_for_platforms(
+async def _optimize_content_for_platforms_call(
     original_message: str,
     target_platforms: list[str],
     campaign_context: str = "",
@@ -408,12 +474,32 @@ def optimize_content_for_platforms(
     """
 
 
+# Public wrapper for optimize_content_for_platforms
+async def optimize_content_for_platforms(
+    original_message: str,
+    target_platforms: list[str],
+    campaign_context: str = "",
+    brand_guidelines: str = "",
+    target_audience: str = "",
+    trend_analysis: TrendAnalysis = None,
+    performance_goals: str = "",
+) -> ContentOptimization:
+    """Optimize content for multiple social media platforms with engagement predictions."""
+    response = await _optimize_content_for_platforms_call(
+        original_message=original_message, target_platforms=target_platforms,
+        campaign_context=campaign_context, brand_guidelines=brand_guidelines,
+        target_audience=target_audience, trend_analysis=trend_analysis,
+        performance_goals=performance_goals
+    )
+    return response.parse()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=ContentCalendar,
 )
-def create_content_calendar(
+async def _create_content_calendar_call(
     campaign_duration: str,
     platform_strategies: list[PlatformStrategy],
     content_themes: list[str],
@@ -469,12 +555,33 @@ def create_content_calendar(
     """
 
 
+# Public wrapper for create_content_calendar
+async def create_content_calendar(
+    campaign_duration: str,
+    platform_strategies: list[PlatformStrategy],
+    content_themes: list[str],
+    key_events: str = "",
+    posting_frequency: str = "",
+    resource_constraints: str = "",
+    trend_windows: str = "",
+    performance_targets: str = "",
+) -> ContentCalendar:
+    """Create an enhanced social media content calendar with flexibility for trends."""
+    response = await _create_content_calendar_call(
+        campaign_duration=campaign_duration, platform_strategies=platform_strategies,
+        content_themes=content_themes, key_events=key_events,
+        posting_frequency=posting_frequency, resource_constraints=resource_constraints,
+        trend_windows=trend_windows, performance_targets=performance_targets
+    )
+    return response.parse()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=SocialMediaCampaign,
 )
-def synthesize_social_media_campaign(
+async def _synthesize_social_media_campaign_call(
     campaign_objective: str,
     trend_analysis: TrendAnalysis,
     platform_strategies: list[PlatformStrategy],
@@ -531,6 +638,27 @@ def synthesize_social_media_campaign(
 
     Create a comprehensive campaign plan with execution details, success metrics, and contingencies.
     """
+
+
+# Public wrapper for synthesize_social_media_campaign
+async def synthesize_social_media_campaign(
+    campaign_objective: str,
+    trend_analysis: TrendAnalysis,
+    platform_strategies: list[PlatformStrategy],
+    content_optimization: ContentOptimization,
+    content_calendar: ContentCalendar,
+    budget: str = "",
+    success_criteria: str = "",
+    risk_factors: str = "",
+) -> SocialMediaCampaign:
+    """Synthesize complete social media campaign with enhanced features."""
+    response = await _synthesize_social_media_campaign_call(
+        campaign_objective=campaign_objective, trend_analysis=trend_analysis,
+        platform_strategies=platform_strategies, content_optimization=content_optimization,
+        content_calendar=content_calendar, budget=budget,
+        success_criteria=success_criteria, risk_factors=risk_factors
+    )
+    return response.parse()
 
 
 async def multi_platform_social_media_manager(

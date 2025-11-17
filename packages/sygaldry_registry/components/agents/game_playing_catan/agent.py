@@ -130,11 +130,11 @@ class CatanPlayer(BaseModel):
     model: str | None = Field(None, description="AI model if AI player")
     provider: str | None = Field(None, description="AI provider if AI player")
     personality: str | None = Field(None, description="AI personality traits")
-    resources: dict[Resource, int] = Field(default_factory=lambda: defaultdict(int), description="Resource cards")
-    development_cards: list[DevelopmentCard] = Field(default_factory=list, description="Development cards")
-    settlements: list[tuple[int, int, int]] = Field(default_factory=list, description="Settlement positions")
-    cities: list[tuple[int, int, int]] = Field(default_factory=list, description="City positions")
-    roads: list[Edge] = Field(default_factory=list, description="Road positions")
+    resources: dict[Resource, int] = Field(..., description="Resource cards (empty dict if none)")
+    development_cards: list[DevelopmentCard] = Field(..., description="Development cards (empty list if none)")
+    settlements: list[tuple[int, int, int]] = Field(..., description="Settlement positions (empty list if none)")
+    cities: list[tuple[int, int, int]] = Field(..., description="City positions (empty list if none)")
+    roads: list[Edge] = Field(..., description="Road positions (empty list if none)")
     victory_points: int = Field(default=0, description="Total victory points")
     knights_played: int = Field(default=0, description="Number of knights played")
     longest_road_length: int = Field(default=0, description="Length of longest road")
@@ -153,7 +153,7 @@ class CatanState(BaseModel):
     dice_roll: tuple[int, int] | None = Field(None, description="Last dice roll")
     robber_position: tuple[int, int] = Field(..., description="Current robber position")
     development_cards_remaining: int = Field(default=25, description="Development cards left")
-    active_trade_offers: list[TradeOffer] = Field(default_factory=list, description="Active trade offers")
+    active_trade_offers: list[TradeOffer] = Field(..., description="Active trade offers (empty list if none)")
     turn_number: int = Field(default=0, description="Current turn number")
     winner: int | None = Field(None, description="Winner player ID if game ended")
 
@@ -194,6 +194,18 @@ class CatanGame(BaseModel):
     strategic_analyses: dict[int, StrategicAnalysis] = Field(..., description="Strategic analysis per player")
 
 
+# Rebuild models to resolve forward references
+HexTile.model_rebuild()
+Intersection.model_rebuild()
+Edge.model_rebuild()
+TradeOffer.model_rebuild()
+CatanPlayer.model_rebuild()
+CatanState.model_rebuild()
+CatanAction.model_rebuild()
+StrategicAnalysis.model_rebuild()
+CatanGame.model_rebuild()
+
+
 # Catan-specific prompts for different AI personalities
 PERSONALITY_PROMPTS = {
     "builder": "You are a builder-focused Catan player who prioritizes settlements and cities for points.",
@@ -210,7 +222,7 @@ PERSONALITY_PROMPTS = {
     model_id="gpt-4o-mini",
     format=StrategicAnalysis,
 )
-def analyze_catan_strategy(
+async def _analyze_catan_strategy_call(
     player_id: int,
     game_state: CatanState,
     player_resources: dict[Resource, int],
@@ -263,7 +275,7 @@ def analyze_catan_strategy(
     model_id="gpt-4o-mini",
     format=list[TradeOffer],
 )
-def develop_trade_proposals(
+async def _develop_trade_proposals_call(
     player_id: int,
     current_resources: dict[Resource, int],
     needed_resources: list[Resource],
@@ -311,7 +323,7 @@ def develop_trade_proposals(
     model_id="gpt-4o-mini",
     format=CatanAction,
 )
-def plan_building_action(
+async def _plan_building_action_call(
     player_id: int,
     available_resources: dict[Resource, int],
     possible_builds: list[str],
@@ -365,7 +377,7 @@ def plan_building_action(
     model_id="gpt-4o-mini",
     format=CatanAction,
 )
-def handle_robber_action(
+async def _handle_robber_action_call(
     player_id: int,
     current_robber_position: tuple[int, int],
     player_positions: str,
@@ -412,7 +424,7 @@ def handle_robber_action(
     model_id="gpt-4o-mini",
     format=list[CatanAction],
 )
-def plan_complete_turn(
+async def _plan_complete_turn_call(
     player_id: int,
     current_phase: CatanPhase,
     resources: dict[Resource, int],
@@ -457,6 +469,139 @@ def plan_complete_turn(
 
     Provide ordered list of actions for this turn with reasoning.
     """
+
+
+# Public wrapper functions
+async def analyze_catan_strategy(
+    player_id: int,
+    game_state: CatanState,
+    player_resources: dict[Resource, int],
+    opponent_analysis: str,
+    board_position: str,
+    turn_number: int,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o",
+) -> StrategicAnalysis:
+    """Analyze strategic position and recommend approach."""
+    response = await _analyze_catan_strategy_call(
+        player_id=player_id,
+        game_state=game_state,
+        player_resources=player_resources,
+        opponent_analysis=opponent_analysis,
+        board_position=board_position,
+        turn_number=turn_number,
+        personality_prompt=personality_prompt,
+        provider=provider,
+        model=model,
+    )
+    return response.parse()
+
+
+async def develop_trade_proposals(
+    player_id: int,
+    current_resources: dict[Resource, int],
+    needed_resources: list[Resource],
+    strategic_goals: str,
+    opponent_resources: str,
+    available_ports: list[str],
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o-mini",
+) -> list[TradeOffer]:
+    """Generate potential trade offers based on needs."""
+    response = await _develop_trade_proposals_call(
+        player_id=player_id,
+        current_resources=current_resources,
+        needed_resources=needed_resources,
+        strategic_goals=strategic_goals,
+        opponent_resources=opponent_resources,
+        available_ports=available_ports,
+        personality_prompt=personality_prompt,
+        provider=provider,
+        model=model,
+    )
+    return response.parse()
+
+
+async def plan_building_action(
+    player_id: int,
+    available_resources: dict[Resource, int],
+    possible_builds: list[str],
+    strategic_analysis: StrategicAnalysis,
+    board_state: str,
+    victory_points: int,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o-mini",
+) -> CatanAction:
+    """Decide what to build this turn."""
+    response = await _plan_building_action_call(
+        player_id=player_id,
+        available_resources=available_resources,
+        possible_builds=possible_builds,
+        strategic_analysis=strategic_analysis,
+        board_state=board_state,
+        victory_points=victory_points,
+        personality_prompt=personality_prompt,
+        provider=provider,
+        model=model,
+    )
+    return response.parse()
+
+
+async def handle_robber_action(
+    player_id: int,
+    current_robber_position: tuple[int, int],
+    player_positions: str,
+    resource_production: str,
+    player_standings: str,
+    strategic_goals: str,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o-mini",
+) -> CatanAction:
+    """Decide where to move the robber and whom to rob."""
+    response = await _handle_robber_action_call(
+        player_id=player_id,
+        current_robber_position=current_robber_position,
+        player_positions=player_positions,
+        resource_production=resource_production,
+        player_standings=player_standings,
+        strategic_goals=strategic_goals,
+        personality_prompt=personality_prompt,
+        provider=provider,
+        model=model,
+    )
+    return response.parse()
+
+
+async def plan_complete_turn(
+    player_id: int,
+    current_phase: CatanPhase,
+    resources: dict[Resource, int],
+    strategic_analysis: StrategicAnalysis,
+    trade_opportunities: list[TradeOffer],
+    building_options: str,
+    victory_points: int,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o",
+) -> list[CatanAction]:
+    """Plan all actions for the current turn."""
+    response = await _plan_complete_turn_call(
+        player_id=player_id,
+        current_phase=current_phase,
+        resources=resources,
+        strategic_analysis=strategic_analysis,
+        trade_opportunities=trade_opportunities,
+        building_options=building_options,
+        victory_points=victory_points,
+        personality_prompt=personality_prompt,
+        provider=provider,
+        model=model,
+    )
+    return response.parse()
 
 
 async def process_human_catan_input(game: CatanGame, human_player: CatanPlayer, phase: CatanPhase) -> CatanAction:

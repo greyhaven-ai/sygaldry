@@ -77,9 +77,11 @@ class ModerationResult(BaseModel):
     overall_verdict: Literal["safe", "questionable", "unsafe", "harmful"] = Field(
         ..., description="Overall content safety verdict"
     )
-    violations: list[ViolationCategory] = Field(..., description="Detected violations")
-    recommended_action: ModerationAction = Field(..., description="Recommended moderation action")
-    contextual_factors: ContextualFactors = Field(..., description="Context affecting moderation decision")
+    # Note: Field(...) without description for nested models to avoid OpenAI schema error
+    # OpenAI rejects $ref with additional keywords like 'description'
+    violations: list[ViolationCategory] = Field(...)
+    recommended_action: ModerationAction = Field(...)
+    contextual_factors: ContextualFactors = Field(...)
     risk_score: float = Field(..., ge=0.0, le=1.0, description="Overall risk score from 0 (safe) to 1 (critical)")
     content_type_detected: Literal["text", "comment", "post", "message", "review", "other"] = Field(
         ..., description="Type of content detected"
@@ -88,12 +90,20 @@ class ModerationResult(BaseModel):
     summary: str = Field(..., description="Summary of moderation findings")
 
 
+# Rebuild models to resolve forward references
+ViolationCategory.model_rebuild()
+ModerationAction.model_rebuild()
+ContextualFactors.model_rebuild()
+ModerationResult.model_rebuild()
+
+
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=ModerationResult,
 )
-async def moderate_content(
+async def _moderate_content_call(
     content: str,
     content_type: Literal["text", "comment", "post", "message", "review"] = "text",
     context: Optional[str] = None,
@@ -277,6 +287,67 @@ IMPORTANT CONSIDERATIONS:
 - Severity calibration: Match severity to actual harm potential
 
 Provide a comprehensive moderation report."""
+
+
+# Public API wrapper - returns parsed ModerationResult
+@trace()
+async def moderate_content(
+    content: str,
+    content_type: Literal["text", "comment", "post", "message", "review"] = "text",
+    context: Optional[str] = None,
+    sensitivity_level: Literal["low", "medium", "high", "maximum"] = "medium",
+    custom_policies: Optional[str] = None
+) -> ModerationResult:
+    """
+    Moderate content for harmful material, policy violations, and safety issues.
+
+    This is the main public API function. It wraps the Mirascope call and returns
+    the parsed ModerationResult.
+
+    This agent performs comprehensive content moderation including:
+    - Hate speech and harassment detection
+    - Violence and graphic content detection
+    - Sexual content and exploitation detection
+    - Misinformation and disinformation detection
+    - Spam and manipulation detection
+    - Self-harm content detection
+    - Illegal activity detection
+    - Context-aware analysis (sarcasm, education, news, art)
+    - Severity classification
+    - Action recommendations
+
+    Args:
+        content: The content to moderate
+        content_type: Type of content being moderated
+        context: Optional context to improve moderation accuracy
+        sensitivity_level: How strict the moderation should be
+        custom_policies: Optional custom moderation policies
+
+    Returns:
+        ModerationResult with comprehensive analysis and recommendations
+
+    Example:
+        ```python
+        result = await moderate_content(
+            content="Your text here",
+            content_type="comment",
+            sensitivity_level="high"
+        )
+        print(f"Verdict: {result.overall_verdict}")
+        print(f"Risk Score: {result.risk_score}")
+        print(f"Action: {result.recommended_action.action}")
+        for violation in result.violations:
+            print(f"{violation.category}: {violation.severity}")
+        ```
+    """
+    response = await _moderate_content_call(
+        content=content,
+        content_type=content_type,
+        context=context,
+        sensitivity_level=sensitivity_level,
+        custom_policies=custom_policies
+    )
+    return response.parse()
 
 
 # Convenience functions

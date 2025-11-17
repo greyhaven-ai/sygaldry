@@ -34,13 +34,14 @@ InvestmentStage = Literal["pre-seed", "seed", "series-a", "series-b", "series-c"
 class MarketIntelligenceQuery(BaseModel):
     """Market intelligence search specification."""
 
-    segment: MarketSegment | None = Field(None, description="Market segment to analyze")
-    company_type: str | None = Field(None, description="Type of companies to find")
-    investment_stage: InvestmentStage | None = Field(None, description="Investment/funding stage")
-    time_period: str | None = Field(None, description="Time period for events (e.g., '2024', 'last 6 months')")
-    geographic_focus: str | None = Field(None, description="Geographic region of interest")
-    investor_criteria: list[str] = Field(default_factory=list, description="Specific investor requirements")
-    signal_keywords: list[str] = Field(default_factory=list, description="Keywords indicating relevant signals")
+    # Note: All fields must be required for OpenAI schema validation
+    segment: MarketSegment | None = Field(..., description="Market segment to analyze (null if not specified)")
+    company_type: str | None = Field(..., description="Type of companies to find (null if not specified)")
+    investment_stage: InvestmentStage | None = Field(..., description="Investment/funding stage (null if not specified)")
+    time_period: str | None = Field(..., description="Time period for events (null if not specified)")
+    geographic_focus: str | None = Field(..., description="Geographic region of interest (null if not specified)")
+    investor_criteria: list[str] = Field(..., description="Specific investor requirements (empty list if none)")
+    signal_keywords: list[str] = Field(..., description="Keywords indicating relevant signals (empty list if none)")
 
 
 class MarketIntelligenceResponse(BaseModel):
@@ -49,20 +50,27 @@ class MarketIntelligenceResponse(BaseModel):
     webset_id: str = Field(..., description="ID of the created webset")
     search_focus: str = Field(..., description="Primary focus of the search")
     search_query: str = Field(..., description="Search query used")
-    filters_applied: list[str] = Field(default_factory=list, description="Filters and criteria applied")
-    enrichments: list[str] = Field(default_factory=list, description="Data enrichments requested")
-    signal_types: list[str] = Field(default_factory=list, description="Types of market signals tracked")
-    estimated_results: int | None = Field(None, description="Estimated number of results")
+    # Note: All fields must be required for OpenAI schema validation
+    filters_applied: list[str] = Field(..., description="Filters and criteria applied (empty list if none)")
+    enrichments: list[str] = Field(..., description="Data enrichments requested (empty list if none)")
+    signal_types: list[str] = Field(..., description="Types of market signals tracked (empty list if none)")
+    estimated_results: int | None = Field(..., description="Estimated number of results (null if unknown)")
     status: str = Field(..., description="Current status of the search")
 
 
+# Rebuild models to resolve forward references
+MarketIntelligenceQuery.model_rebuild()
+MarketIntelligenceResponse.model_rebuild()
+
+
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=MarketIntelligenceResponse,
     tools=[create_webset, get_webset_status, list_webset_items] if create_webset else [],
 )
-async def market_intelligence_agent(
+async def _market_intelligence_agent_call(
     segment: MarketSegment | None = None,
     company_type: str | None = None,
     investment_stage: InvestmentStage | None = None,
@@ -145,6 +153,48 @@ Investor Criteria: {investor_criteria_str}
 Signal Keywords: {signal_keywords_str}
 
 Create a webset to track these market intelligence signals."""
+
+
+# Public wrapper - returns parsed MarketIntelligenceResponse
+async def market_intelligence_agent(
+    segment: MarketSegment | None = None,
+    company_type: str | None = None,
+    investment_stage: InvestmentStage | None = None,
+    time_period: str | None = None,
+    geographic_focus: str | None = None,
+    investor_criteria: list[str] | None = None,
+    signal_keywords: list[str] | None = None,
+    llm_provider: str = "openai",
+    model: str = "gpt-4o-mini",
+) -> MarketIntelligenceResponse:
+    """Track market intelligence and investment opportunities using Exa websets.
+
+    Args:
+        segment: Market segment to analyze
+        company_type: Type of companies to find
+        investment_stage: Investment/funding stage
+        time_period: Time period for events
+        geographic_focus: Geographic region of interest
+        investor_criteria: Specific investor requirements
+        signal_keywords: Keywords indicating relevant signals
+        llm_provider: LLM provider to use
+        model: Model to use
+
+    Returns:
+        MarketIntelligenceResponse with webset details
+    """
+    response = await _market_intelligence_agent_call(
+        segment=segment,
+        company_type=company_type,
+        investment_stage=investment_stage,
+        time_period=time_period,
+        geographic_focus=geographic_focus,
+        investor_criteria=investor_criteria,
+        signal_keywords=signal_keywords,
+        llm_provider=llm_provider,
+        model=model
+    )
+    return response.parse()
 
 
 # Convenience functions for common market intelligence searches

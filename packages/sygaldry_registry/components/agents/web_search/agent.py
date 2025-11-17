@@ -6,6 +6,16 @@ from mirascope import llm
 from pydantic import BaseModel, Field
 from typing import Any, Literal, Optional
 
+try:
+    from lilypad import trace
+    LILYPAD_AVAILABLE = True
+except ImportError:
+    def trace():
+        def decorator(func):
+            return func
+        return decorator
+    LILYPAD_AVAILABLE = False
+
 # Import all available search tools
 try:
     from ...tools.duckduckgo_search.tool import SearchArgs, duckduckgo_search
@@ -64,13 +74,16 @@ except ImportError:
 class WebSearchResponse(BaseModel):
     """Structured response for web search agent."""
 
+    # Note: All fields must be required for OpenAI's strict schema validation
+    # OpenAI requires ALL properties to be in the 'required' array
+    # For fields that might be empty, use empty list/string defaults in the LLM prompt
     answer: str = Field(..., description="Comprehensive answer based on web search results")
-    sources: list[str] = Field(default_factory=list, description="URLs of sources used in the answer")
-    search_queries: list[str] = Field(default_factory=list, description="Search queries that were performed")
+    sources: list[str] = Field(..., description="URLs of sources used in the answer (empty list if no sources)")
+    search_queries: list[str] = Field(..., description="Search queries that were performed (empty list if none)")
     search_providers: list[str] = Field(
-        default_factory=list, description="Search providers used (e.g., duckduckgo, qwant, exa, nimble)"
+        ..., description="Search providers used (e.g., duckduckgo, qwant, exa, nimble) - empty list if unknown"
     )
-    privacy_note: str | None = Field(default=None, description="Privacy information if applicable")
+    privacy_note: str = Field(..., description="Privacy information if applicable, or empty string if not applicable")
 
 
 # Type for search provider selection
@@ -190,14 +203,14 @@ if URL_PARSER_AVAILABLE:
     _ALL_AVAILABLE_TOOLS.append(parse_url_content)
 
 
-# Single unified web search agent
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=WebSearchResponse,
     tools=_ALL_AVAILABLE_TOOLS,
 )
-async def web_search_agent(
+async def _web_search_agent_call(
     question: str,
     search_provider: SearchProvider = "auto",
     search_history: list[str] | None = None,
@@ -294,6 +307,53 @@ Return a structured response with:
 
 USER: {question}
 ASSISTANT:"""
+
+
+# Public API wrapper - returns parsed WebSearchResponse
+@trace()
+async def web_search_agent(
+    question: str,
+    search_provider: SearchProvider = "auto",
+    search_history: list[str] | None = None,
+    locale: str = "en_US",
+    privacy_mode: bool = False,
+    max_results_per_search: int = 5,
+    llm_provider: str = "openai",
+    model: str = "gpt-4o-mini",
+    stream: bool = False,
+) -> WebSearchResponse:
+    """
+    Unified web search agent.
+
+    This is the main public API function. It wraps the Mirascope call and returns
+    the parsed WebSearchResponse.
+
+    Args:
+        question: The user's question to answer
+        search_provider: Which search provider(s) to use
+        search_history: Previous searches for context
+        locale: Search locale for international results
+        privacy_mode: Whether to prioritize privacy-focused search
+        max_results_per_search: Maximum results per search query
+        llm_provider: LLM provider to use
+        model: Specific model to use
+        stream: Whether to stream the response
+
+    Returns:
+        WebSearchResponse with answer, sources, and metadata
+    """
+    response = await _web_search_agent_call(
+        question=question,
+        search_provider=search_provider,
+        search_history=search_history,
+        locale=locale,
+        privacy_mode=privacy_mode,
+        max_results_per_search=max_results_per_search,
+        llm_provider=llm_provider,
+        model=model,
+        stream=stream,
+    )
+    return response.parse()
 
 
 # Convenience functions remain the same but now use the unified agent

@@ -13,7 +13,8 @@ class Entity(BaseModel):
     id: str = Field(..., description="Unique identifier for the entity")
     name: str = Field(..., description="Entity name")
     type: str = Field(..., description="Entity type (e.g., Person, Organization, Location, Event)")
-    properties: dict[str, Any] = Field(default_factory=dict, description="Additional properties of the entity")
+    # Note: All fields must be required for OpenAI schema validation
+    properties: dict[str, Any] = Field(..., description="Additional properties of the entity (empty dict if no data)")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score for entity extraction")
 
 
@@ -23,15 +24,17 @@ class Relationship(BaseModel):
     source_id: str = Field(..., description="ID of the source entity")
     target_id: str = Field(..., description="ID of the target entity")
     relationship_type: str = Field(..., description="Type of relationship (e.g., works_for, located_in, married_to)")
-    properties: dict[str, Any] = Field(default_factory=dict, description="Additional properties of the relationship")
+    # Note: All fields must be required for OpenAI schema validation
+    properties: dict[str, Any] = Field(..., description="Additional properties of the relationship (empty dict if no data)")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score for relationship extraction")
 
 
 class KnowledgeGraph(BaseModel):
     """A complete knowledge graph."""
 
-    entities: list[Entity] = Field(..., description="List of entities in the graph")
-    relationships: list[Relationship] = Field(..., description="List of relationships between entities")
+    # Note: Field(...) without description for nested models to avoid OpenAI schema error
+    entities: list[Entity] = Field(...)
+    relationships: list[Relationship] = Field(...)
     summary: str = Field(..., description="Summary of the knowledge graph")
     domain: str = Field(..., description="Domain or topic of the knowledge graph")
 
@@ -48,32 +51,48 @@ class TripleStatement(BaseModel):
 class EntityExtractionResponse(BaseModel):
     """Response for entity extraction step."""
 
-    entities: list[Entity] = Field(..., description="Extracted entities")
-    entity_mentions: dict[str, list[str]] = Field(default_factory=dict, description="Map of entity ID to text mentions")
+    # Note: Field(...) without description for nested models
+    entities: list[Entity] = Field(...)
+    # Note: All fields must be required for OpenAI schema validation
+    entity_mentions: dict[str, list[str]] = Field(..., description="Map of entity ID to text mentions (empty dict if none)")
 
 
 class RelationshipExtractionResponse(BaseModel):
     """Response for relationship extraction step."""
 
-    relationships: list[Relationship] = Field(..., description="Extracted relationships")
-    triple_statements: list[TripleStatement] = Field(default_factory=list, description="Triple representations")
+    # Note: Field(...) without description for nested models
+    relationships: list[Relationship] = Field(...)
+    triple_statements: list[TripleStatement] = Field(..., description="Triple representations (empty list if none)")
 
 
 class GraphEnrichmentResponse(BaseModel):
     """Response for graph enrichment step."""
 
-    enriched_entities: list[Entity] = Field(..., description="Entities with enriched properties")
-    inferred_relationships: list[Relationship] = Field(..., description="Additional inferred relationships")
-    graph_metrics: dict[str, Any] = Field(default_factory=dict, description="Graph analysis metrics")
+    # Note: Field(...) without description for nested models
+    enriched_entities: list[Entity] = Field(...)
+    inferred_relationships: list[Relationship] = Field(...)
+    # Note: All fields must be required for OpenAI schema validation
+    graph_metrics: dict[str, Any] = Field(..., description="Graph analysis metrics (empty dict if no metrics)")
+
+
+# Rebuild models to resolve forward references
+Entity.model_rebuild()
+Relationship.model_rebuild()
+KnowledgeGraph.model_rebuild()
+TripleStatement.model_rebuild()
+EntityExtractionResponse.model_rebuild()
+RelationshipExtractionResponse.model_rebuild()
+GraphEnrichmentResponse.model_rebuild()
 
 
 # Step 1: Extract entities from text
+# Internal LLM call - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=EntityExtractionResponse,
 )
-async def extract_entities(text: str) -> str:
+async def _extract_entities_call(text: str) -> str:
     """Extract entities from text."""
     return f"""
     You are an expert in knowledge extraction and named entity recognition.
@@ -104,13 +123,21 @@ async def extract_entities(text: str) -> str:
     """
 
 
+# Public wrapper for extract_entities
+async def extract_entities(text: str) -> EntityExtractionResponse:
+    """Extract entities from text."""
+    response = await _extract_entities_call(text)
+    return response.parse()
+
+
 # Step 2: Extract relationships between entities
+# Internal LLM call - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=RelationshipExtractionResponse,
 )
-async def extract_relationships(text: str, entities: str) -> str:
+async def _extract_relationships_call(text: str, entities: str) -> str:
     """Extract relationships between entities."""
     return f"""
     You are an expert in relationship extraction and knowledge graph construction.
@@ -142,13 +169,21 @@ async def extract_relationships(text: str, entities: str) -> str:
     """
 
 
+# Public wrapper for extract_relationships
+async def extract_relationships(text: str, entities: str) -> RelationshipExtractionResponse:
+    """Extract relationships between entities."""
+    response = await _extract_relationships_call(text, entities)
+    return response.parse()
+
+
 # Step 3: Enrich and analyze the knowledge graph
+# Internal LLM call - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=GraphEnrichmentResponse,
 )
-async def enrich_knowledge_graph(entities: str, relationships: str, domain: str) -> str:
+async def _enrich_knowledge_graph_call(entities: str, relationships: str, domain: str) -> str:
     """Enrich and analyze the knowledge graph."""
     return f"""
     You are an expert in knowledge graph analysis and enrichment.
@@ -176,6 +211,13 @@ async def enrich_knowledge_graph(entities: str, relationships: str, domain: str)
 
     Consider domain-specific patterns and common knowledge to infer additional information.
     """
+
+
+# Public wrapper for enrich_knowledge_graph
+async def enrich_knowledge_graph(entities: str, relationships: str, domain: str) -> GraphEnrichmentResponse:
+    """Enrich and analyze the knowledge graph."""
+    response = await _enrich_knowledge_graph_call(entities, relationships, domain)
+    return response.parse()
 
 
 # Main knowledge graph extraction function

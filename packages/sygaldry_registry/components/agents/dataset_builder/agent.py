@@ -73,7 +73,8 @@ class DatasetStatus(BaseModel):
     items_found: int = Field(..., description="Number of items found so far")
     items_enriched: int = Field(..., description="Number of items enriched")
     progress_percentage: float = Field(..., description="Overall progress percentage")
-    estimated_completion: str | None = Field(default=None, description="Estimated completion time")
+    # Note: All fields must be required for OpenAI schema validation
+    estimated_completion: str | None = Field(..., description="Estimated completion time (null if not available)")
 
 
 class DatasetAnalysis(BaseModel):
@@ -92,17 +93,26 @@ class DatasetBuilderResponse(BaseModel):
     webset_id: str = Field(..., description="ID of the created webset")
     name: str = Field(..., description="Name of the dataset")
     status: DatasetStatus = Field(..., description="Current status")
-    export_url: str | None = Field(default=None, description="URL to download the dataset when ready")
-    analysis: DatasetAnalysis | None = Field(default=None, description="Analysis of the dataset")
+    # Note: All fields must be required for OpenAI schema validation
+    export_url: str | None = Field(..., description="URL to download the dataset when ready (null if not ready)")
+    analysis: DatasetAnalysis | None = Field(..., description="Analysis of the dataset (null if not completed)")
 
 
-# Step 1: Analyze requirements and create plan
+# Rebuild models to resolve forward references
+DatasetRequirements.model_rebuild()
+DatasetPlan.model_rebuild()
+DatasetStatus.model_rebuild()
+DatasetAnalysis.model_rebuild()
+DatasetBuilderResponse.model_rebuild()
+
+
+# Step 1: Analyze requirements and create plan - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=DatasetPlan,
 )
-async def create_dataset_plan(requirements: str) -> str:
+async def _create_dataset_plan_call(requirements: str) -> str:
     """Create a plan for building the dataset."""
     return f"""
     You are a data architect specializing in building curated datasets using Exa Websets.
@@ -139,13 +149,27 @@ async def create_dataset_plan(requirements: str) -> str:
     """
 
 
-# Step 2: Execute the plan and create webset
+# Public wrapper for create_dataset_plan
+async def create_dataset_plan(requirements: str) -> DatasetPlan:
+    """Create a plan for building the dataset.
+
+    Args:
+        requirements: Dataset requirements as JSON string
+
+    Returns:
+        DatasetPlan with configuration details
+    """
+    response = await _create_dataset_plan_call(requirements=requirements)
+    return response.parse()
+
+
+# Step 2: Execute the plan and create webset - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     tools=[create_webset, get_webset] if WEBSETS_AVAILABLE else [],
 )
-async def execute_dataset_plan(plan: str) -> str:
+async def _execute_dataset_plan_call(plan: str) -> str:
     """Execute the plan and create the webset."""
     return f"""
     You are executing a dataset building plan using Exa Websets.
@@ -170,14 +194,28 @@ async def execute_dataset_plan(plan: str) -> str:
     """
 
 
-# Step 3: Monitor progress
+# Public wrapper for execute_dataset_plan
+async def execute_dataset_plan(plan: str):
+    """Execute the plan and create the webset.
+
+    Args:
+        plan: Dataset plan as JSON string
+
+    Returns:
+        Execution result with webset ID
+    """
+    response = await _execute_dataset_plan_call(plan=plan)
+    return response  # No parse() needed - has tools but no format model
+
+
+# Step 3: Monitor progress - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=DatasetStatus,
     tools=[get_webset, list_webset_items] if WEBSETS_AVAILABLE else [],
 )
-async def monitor_dataset_progress(webset_id: str) -> str:
+async def _monitor_dataset_progress_call(webset_id: str) -> str:
     """Monitor the progress of dataset building."""
     return f"""
     Monitor the progress of a dataset being built.
@@ -198,14 +236,28 @@ async def monitor_dataset_progress(webset_id: str) -> str:
     """
 
 
-# Step 4: Analyze the dataset
+# Public wrapper for monitor_dataset_progress
+async def monitor_dataset_progress(webset_id: str) -> DatasetStatus:
+    """Monitor the progress of dataset building.
+
+    Args:
+        webset_id: ID of the webset to monitor
+
+    Returns:
+        DatasetStatus with current progress
+    """
+    response = await _monitor_dataset_progress_call(webset_id=webset_id)
+    return response.parse()
+
+
+# Step 4: Analyze the dataset - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=DatasetAnalysis,
     tools=[list_webset_items, export_webset] if WEBSETS_AVAILABLE else [],
 )
-async def analyze_dataset(webset_id: str, name: str) -> str:
+async def _analyze_dataset_call(webset_id: str, name: str) -> str:
     """Analyze the completed dataset."""
     return f"""
     Analyze the completed dataset.
@@ -232,6 +284,21 @@ async def analyze_dataset(webset_id: str, name: str) -> str:
 
     Return a comprehensive analysis.
     """
+
+
+# Public wrapper for analyze_dataset
+async def analyze_dataset(webset_id: str, name: str) -> DatasetAnalysis:
+    """Analyze the completed dataset.
+
+    Args:
+        webset_id: ID of the webset to analyze
+        name: Name of the dataset
+
+    Returns:
+        DatasetAnalysis with insights and recommendations
+    """
+    response = await _analyze_dataset_call(webset_id=webset_id, name=name)
+    return response.parse()
 
 
 async def build_dataset(

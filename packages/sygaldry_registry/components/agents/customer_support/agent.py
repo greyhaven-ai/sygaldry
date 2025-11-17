@@ -95,18 +95,15 @@ class CustomerSentiment(BaseModel):
 class ExtractedInformation(BaseModel):
     """Key information extracted from the message."""
 
-    customer_name: Optional[str] = Field(None, description="Customer name if mentioned")
-    account_id: Optional[str] = Field(None, description="Account ID if mentioned")
-    order_number: Optional[str] = Field(None, description="Order number if mentioned")
-    product_name: Optional[str] = Field(None, description="Product/service mentioned")
-    error_codes: list[str] = Field(default_factory=list, description="Any error codes mentioned")
+    # Note: All fields must be required for OpenAI schema validation
+    customer_name: str | None = Field(..., description="Customer name if mentioned (null if not mentioned)")
+    account_id: str | None = Field(..., description="Account ID if mentioned (null if not mentioned)")
+    order_number: str | None = Field(..., description="Order number if mentioned (null if not mentioned)")
+    product_name: str | None = Field(..., description="Product/service mentioned (null if not mentioned)")
+    error_codes: list[str] = Field(..., description="Any error codes mentioned (empty list if none)")
     specific_issue: str = Field(..., description="Specific issue or request")
-    previous_attempts: list[str] = Field(
-        default_factory=list, description="Previous troubleshooting attempts mentioned"
-    )
-    contact_preference: Optional[str] = Field(
-        None, description="Preferred contact method if mentioned"
-    )
+    previous_attempts: list[str] = Field(..., description="Previous troubleshooting attempts mentioned (empty list if none)")
+    contact_preference: str | None = Field(..., description="Preferred contact method if mentioned (null if not mentioned)")
 
 
 class ResponseSuggestion(BaseModel):
@@ -118,36 +115,43 @@ class ResponseSuggestion(BaseModel):
     )
     next_steps: list[str] = Field(..., description="Recommended next steps")
     escalation_needed: bool = Field(..., description="Whether escalation is needed")
-    escalation_reason: Optional[str] = Field(
-        None, description="Reason for escalation if needed"
-    )
-    escalate_to: Optional[str] = Field(
-        None, description="Department/team to escalate to"
-    )
-    canned_response_tags: list[str] = Field(
-        default_factory=list, description="Tags for relevant canned responses"
-    )
+    # Note: All fields must be required for OpenAI schema validation
+    escalation_reason: str | None = Field(..., description="Reason for escalation if needed (null if not needed)")
+    escalate_to: str | None = Field(..., description="Department/team to escalate to (null if not needed)")
+    canned_response_tags: list[str] = Field(..., description="Tags for relevant canned responses (empty list if none)")
 
 
 class CustomerSupportAnalysis(BaseModel):
     """Complete customer support ticket analysis."""
 
-    category: TicketCategory = Field(..., description="Ticket classification")
-    urgency: UrgencyAssessment = Field(..., description="Urgency and priority assessment")
-    sentiment: CustomerSentiment = Field(..., description="Customer sentiment analysis")
-    extracted_info: ExtractedInformation = Field(..., description="Extracted key information")
-    response_suggestion: ResponseSuggestion = Field(..., description="Response suggestions")
+    # Note: Field(...) without description for nested models to avoid OpenAI schema error
+    # OpenAI rejects $ref with additional keywords like 'description'
+    category: TicketCategory = Field(...)
+    urgency: UrgencyAssessment = Field(...)
+    sentiment: CustomerSentiment = Field(...)
+    extracted_info: ExtractedInformation = Field(...)
+    response_suggestion: ResponseSuggestion = Field(...)
     summary: str = Field(..., description="Brief summary of the ticket")
     key_points: list[str] = Field(..., description="Key points from the message")
     tags: list[str] = Field(..., description="Relevant tags for ticket organization")
 
 
+# Rebuild models to resolve forward references
+TicketCategory.model_rebuild()
+UrgencyAssessment.model_rebuild()
+CustomerSentiment.model_rebuild()
+ExtractedInformation.model_rebuild()
+ResponseSuggestion.model_rebuild()
+CustomerSupportAnalysis.model_rebuild()
+
+
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=CustomerSupportAnalysis,
 )
-async def analyze_support_ticket(
+async def _analyze_support_ticket_call(
     message: str,
     context: Optional[str] = None,
     customer_history: Optional[str] = None,
@@ -281,6 +285,59 @@ Provide:
 - Relevant tags for organization and search
 
 Be thorough, empathetic, and action-oriented in your analysis."""
+
+
+# Public API wrapper - returns parsed CustomerSupportAnalysis
+@trace()
+async def analyze_support_ticket(
+    message: str,
+    context: Optional[str] = None,
+    customer_history: Optional[str] = None,
+    analysis_depth: Literal["basic", "detailed", "comprehensive"] = "detailed"
+) -> CustomerSupportAnalysis:
+    """
+    Analyze customer support ticket with comprehensive classification and recommendations.
+
+    This is the main public API function. It wraps the Mirascope call and returns
+    the parsed CustomerSupportAnalysis.
+
+    This agent performs intelligent customer support analysis including:
+    - Ticket classification and categorization
+    - Urgency and priority assessment
+    - Sentiment and emotion detection
+    - Key information extraction
+    - Response suggestions with appropriate tone
+    - Escalation recommendations
+    - Next steps and action items
+
+    Args:
+        message: The customer support message/ticket
+        context: Optional context about the product/service
+        customer_history: Optional customer history or previous tickets
+        analysis_depth: Level of analysis detail
+
+    Returns:
+        CustomerSupportAnalysis with complete ticket analysis
+
+    Example:
+        ```python
+        result = await analyze_support_ticket(
+            message="I've been trying to log in for 3 hours and keep getting error 403. This is unacceptable!",
+            analysis_depth="detailed"
+        )
+        print(f"Category: {result.category.primary_category}")
+        print(f"Urgency: {result.urgency.urgency_level}")
+        print(f"Sentiment: {result.sentiment.overall_sentiment}")
+        print(f"Response: {result.response_suggestion.suggested_response}")
+        ```
+    """
+    response = await _analyze_support_ticket_call(
+        message=message,
+        context=context,
+        customer_history=customer_history,
+        analysis_depth=analysis_depth
+    )
+    return response.parse()
 
 
 # Convenience functions

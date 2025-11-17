@@ -65,7 +65,7 @@ class DiplomacyUnit(BaseModel):
     unit_type: UnitType = Field(..., description="Type of unit (army or fleet)")
     location: str = Field(..., description="Current location/province")
     power: DiplomacyPower = Field(..., description="Controlling power")
-    can_retreat_to: list[str] = Field(default_factory=list, description="Valid retreat locations")
+    can_retreat_to: list[str] = Field(..., description="Valid retreat locations (empty list if none)")
 
 
 class DiplomacyOrder(BaseModel):
@@ -118,7 +118,7 @@ class DiplomacyState(BaseModel):
     units: list[DiplomacyUnit] = Field(..., description="All units on the board")
     supply_centers: dict[str, int] = Field(..., description="Supply center count per power")
     recent_messages: list[DiplomacyMessage] = Field(..., description="Recent diplomatic messages")
-    eliminated_powers: list[DiplomacyPower] = Field(default_factory=list, description="Eliminated powers")
+    eliminated_powers: list[DiplomacyPower] = Field(..., description="Eliminated powers (empty list if none)")
 
 
 class DiplomacyMove(BaseModel):
@@ -165,6 +165,19 @@ class DiplomacyGame(BaseModel):
     strategic_analysis: StrategicAnalysis = Field(..., description="Current strategic analysis")
 
 
+# Rebuild models to resolve forward references
+DiplomacyUnit.model_rebuild()
+DiplomacyOrder.model_rebuild()
+DiplomacyMessage.model_rebuild()
+DiplomacyPlayer.model_rebuild()
+ProvinceControl.model_rebuild()
+DiplomacyState.model_rebuild()
+DiplomacyMove.model_rebuild()
+NegotiationProposal.model_rebuild()
+StrategicAnalysis.model_rebuild()
+DiplomacyGame.model_rebuild()
+
+
 # Diplomacy-specific prompts for different AI personalities
 PERSONALITY_PROMPTS = {
     "aggressive": "You are an aggressive Diplomacy player who favors rapid expansion and military solutions.",
@@ -180,7 +193,7 @@ PERSONALITY_PROMPTS = {
     model_id="gpt-4o-mini",
     format=StrategicAnalysis,
 )
-def analyze_strategic_situation(
+async def _analyze_strategic_situation_call(
     power: DiplomacyPower,
     game_state: DiplomacyState,
     recent_messages: list[DiplomacyMessage],
@@ -231,7 +244,7 @@ def analyze_strategic_situation(
     model_id="gpt-4o-mini",
     format=list[NegotiationProposal],
 )
-def develop_negotiation_strategy(
+async def _develop_negotiation_strategy_call(
     power: DiplomacyPower,
     strategic_analysis: StrategicAnalysis,
     current_relationships: str,
@@ -281,7 +294,7 @@ def develop_negotiation_strategy(
     model_id="gpt-4o-mini",
     format=list[DiplomacyMessage],
 )
-def craft_diplomatic_messages(
+async def _craft_diplomatic_messages_call(
     power: DiplomacyPower,
     proposals: list[NegotiationProposal],
     target_powers: list[DiplomacyPower],
@@ -331,7 +344,7 @@ def craft_diplomatic_messages(
     model_id="gpt-4o-mini",
     format=list[DiplomacyOrder],
 )
-def plan_military_orders(
+async def _plan_military_orders_call(
     power: DiplomacyPower,
     current_units: list[DiplomacyUnit],
     strategic_analysis: StrategicAnalysis,
@@ -386,7 +399,7 @@ def plan_military_orders(
     model_id="gpt-4o-mini",
     format=DiplomacyMove,
 )
-def synthesize_complete_move(
+async def _synthesize_complete_move_call(
     power: DiplomacyPower,
     military_orders: list[DiplomacyOrder],
     diplomatic_messages: list[DiplomacyMessage],
@@ -421,6 +434,127 @@ def synthesize_complete_move(
 
     Create a cohesive move that integrates military and diplomatic actions with clear reasoning.
     """
+
+
+# Public wrapper functions
+async def analyze_strategic_situation(
+    power: DiplomacyPower,
+    game_state: DiplomacyState,
+    recent_messages: list[DiplomacyMessage],
+    active_agreements: list[NegotiationProposal],
+    historical_context: str = "",
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o",
+) -> StrategicAnalysis:
+    """Analyze the strategic situation for a power."""
+    response = await _analyze_strategic_situation_call(
+        power=power,
+        game_state=game_state,
+        recent_messages=recent_messages,
+        active_agreements=active_agreements,
+        historical_context=historical_context,
+        personality_prompt=personality_prompt,
+        provider=provider,
+        model=model,
+    )
+    return response.parse()
+
+
+async def develop_negotiation_strategy(
+    power: DiplomacyPower,
+    target_power: DiplomacyPower,
+    strategic_goals: str,
+    recent_interactions: str,
+    current_situation: str,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o-mini",
+) -> NegotiationProposal:
+    """Develop negotiation strategy with another power."""
+    response = await _develop_negotiation_strategy_call(
+        power=power,
+        target_power=target_power,
+        strategic_goals=strategic_goals,
+        recent_interactions=recent_interactions,
+        current_situation=current_situation,
+        personality_prompt=personality_prompt,
+        provider=provider,
+        model=model,
+    )
+    return response.parse()
+
+
+async def craft_diplomatic_messages(
+    power: DiplomacyPower,
+    negotiations: list[NegotiationProposal],
+    current_phase: DiplomacyPhase,
+    strategic_priorities: str,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o-mini",
+) -> list[DiplomacyMessage]:
+    """Craft diplomatic messages to other powers."""
+    response = await _craft_diplomatic_messages_call(
+        power=power,
+        negotiations=negotiations,
+        current_phase=current_phase,
+        strategic_priorities=strategic_priorities,
+        personality_prompt=personality_prompt,
+        provider=provider,
+        model=model,
+    )
+    return response.parse()
+
+
+async def plan_military_orders(
+    power: DiplomacyPower,
+    current_phase: DiplomacyPhase,
+    units: list[DiplomacyUnit],
+    province_control: dict[str, ProvinceControl],
+    strategic_analysis: StrategicAnalysis,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o-mini",
+) -> list[DiplomacyOrder]:
+    """Plan military orders for all units."""
+    response = await _plan_military_orders_call(
+        power=power,
+        current_phase=current_phase,
+        units=units,
+        province_control=province_control,
+        strategic_analysis=strategic_analysis,
+        personality_prompt=personality_prompt,
+        provider=provider,
+        model=model,
+    )
+    return response.parse()
+
+
+async def synthesize_complete_move(
+    power: DiplomacyPower,
+    military_orders: list[DiplomacyOrder],
+    diplomatic_messages: list[DiplomacyMessage],
+    strategic_analysis: StrategicAnalysis,
+    current_phase: DiplomacyPhase,
+    key_objectives: str,
+    personality_prompt: str = PERSONALITY_PROMPTS["balanced"],
+    provider: str = "openai",
+    model: str = "gpt-4o",
+) -> DiplomacyMove:
+    """Synthesize complete move including orders and diplomacy."""
+    response = await _synthesize_complete_move_call(
+        power=power,
+        military_orders=military_orders,
+        diplomatic_messages=diplomatic_messages,
+        strategic_analysis=strategic_analysis,
+        current_phase=current_phase,
+        key_objectives=key_objectives,
+        personality_prompt=personality_prompt,
+        provider=provider,
+        model=model,
+    )
+    return response.parse()
 
 
 async def process_human_input(game: DiplomacyGame, human_power: DiplomacyPower, phase: DiplomacyPhase) -> DiplomacyMove:

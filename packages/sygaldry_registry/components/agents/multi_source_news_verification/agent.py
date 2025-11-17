@@ -446,7 +446,7 @@ class SourceCredibility(BaseModel):
     track_record: str = Field(..., description="Historical accuracy track record")
     red_flags: list[str] = Field(..., description="Potential credibility concerns")
     strengths: list[str] = Field(..., description="Credibility strengths")
-    fact_checker_ratings: dict[str, str] = Field(default_factory=dict, description="Ratings from fact-checkers")
+    fact_checker_ratings: dict[str, str] = Field(..., description="Ratings from fact-checkers (empty dict if none)")
     media_literacy_notes: list[str] = Field(..., description="Media literacy education points")
 
 
@@ -462,7 +462,7 @@ class FactCheck(BaseModel):
     confidence_level: float = Field(..., description="Confidence in verification (0-1)")
     context: str = Field(..., description="Important context for the claim")
     missing_context: list[str] = Field(..., description="Context that may be missing")
-    fact_checker_consensus: str | None = Field(None, description="Consensus from fact-checkers")
+    fact_checker_consensus: str | None = Field(..., description="Consensus from fact-checkers (null if not available)")
     limitations: list[str] = Field(..., description="Limitations in verification")
 
 
@@ -475,7 +475,7 @@ class BiasAnalysis(BaseModel):
     framing_analysis: str = Field(..., description="How the story is framed")
     missing_perspectives: list[str] = Field(..., description="Perspectives not included")
     source_selection_bias: str = Field(..., description="Bias in source selection")
-    visual_bias: str | None = Field(None, description="Bias in visual elements")
+    visual_bias: str | None = Field(..., description="Bias in visual elements (null if no visual content)")
     headline_bias: str = Field(..., description="Bias in headline vs content")
 
 
@@ -539,6 +539,16 @@ class VerificationResult(BaseModel):
     educational_value: str = Field(..., description="Educational insights from this verification")
 
 
+# Rebuild models to resolve forward references
+SourceCredibility.model_rebuild()
+FactCheck.model_rebuild()
+BiasAnalysis.model_rebuild()
+NewsAnalysis.model_rebuild()
+MediaLiteracyReport.model_rebuild()
+NewsVerification.model_rebuild()
+VerificationResult.model_rebuild()
+
+
 # ========== AGENT FUNCTIONS (v2 converted) ==========
 
 @llm.call(
@@ -547,7 +557,7 @@ class VerificationResult(BaseModel):
     format=list[SourceCredibility],
     tools=[web_search],
 )
-def assess_source_credibility(
+async def _assess_source_credibility_call(
     sources: list[str], context: str = "", topic_area: str = "", time_period: str = "current"
 ) -> str:
     """Assess the credibility of news sources with enhanced analysis and real-time verification.
@@ -615,12 +625,21 @@ Use web search to verify current credibility and reputation.
 Provide detailed credibility assessments with educational insights and fact-checker consensus."""
 
 
+# Public wrapper for assess_source_credibility
+async def assess_source_credibility(
+    sources: list[str], context: str = "", topic_area: str = "", time_period: str = "current"
+) -> list[SourceCredibility]:
+    """Assess the credibility of news sources with enhanced analysis and real-time verification."""
+    response = await _assess_source_credibility_call(sources=sources, context=context, topic_area=topic_area, time_period=time_period)
+    return response.parse()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=NewsAnalysis,
 )
-def analyze_news_content(
+async def _analyze_news_content_call(
     article_content: str, headline: str = "", source_context: str = "", publication_date: str = "", author_info: str = ""
 ) -> str:
     """Analyze news content with enhanced bias detection and claim categorization.
@@ -717,7 +736,7 @@ Identify which claims should be prioritized for fact-checking and why."""
         expert_source_search,
     ],
 )
-def fact_check_claims(
+async def _fact_check_claims_call(
     claims: list[str], available_sources: list[str], context: str = "", time_sensitivity: str = "", related_fact_checks: str = ""
 ) -> str:
     """Fact-check specific claims with enhanced verification methodology and comprehensive tool suite.
@@ -808,7 +827,7 @@ Document which tools were used and why for transparency."""
     model_id="gpt-4o",
     format=MediaLiteracyReport,
 )
-def create_media_literacy_report(
+async def _create_media_literacy_report_call(
     news_analysis: NewsAnalysis,
     fact_check_results: list[FactCheck],
     source_credibility: list[SourceCredibility],
@@ -873,7 +892,7 @@ Provide educational insights and practical verification guidance."""
     model_id="gpt-4o",
     format=NewsVerification,
 )
-def synthesize_news_verification(
+async def _synthesize_news_verification_call(
     original_article: str,
     source_credibility: list[SourceCredibility],
     content_analysis: NewsAnalysis,

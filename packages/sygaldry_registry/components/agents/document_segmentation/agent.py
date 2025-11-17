@@ -18,16 +18,16 @@ class DocumentSegment(BaseModel):
     segment_type: str = Field(..., description="Type of segment (e.g., introduction, methodology, results)")
     start_position: int = Field(..., description="Starting character position in original document")
     end_position: int = Field(..., description="Ending character position in original document")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
-    parent_id: str | None = Field(default=None, description="ID of parent segment if hierarchical")
-    child_ids: list[str] = Field(default_factory=list, description="IDs of child segments")
+    metadata: dict[str, Any] = Field(..., description="Additional metadata (empty dict if none)")
+    parent_id: str | None = Field(..., description="ID of parent segment if hierarchical (null if top-level)")
+    child_ids: list[str] = Field(..., description="IDs of child segments (empty list if none)")
 
 
 class SegmentationStrategy(BaseModel):
     """Strategy for document segmentation."""
 
     method: Literal["semantic", "structural", "hybrid", "fixed_size"] = Field(..., description="Segmentation method")
-    parameters: dict[str, Any] = Field(default_factory=dict, description="Method-specific parameters")
+    parameters: dict[str, Any] = Field(..., description="Method-specific parameters (empty dict if none)")
     segment_types: list[str] = Field(..., description="Expected segment types for this document")
 
 
@@ -47,7 +47,7 @@ class SegmentationResult(BaseModel):
 
     segments: list[DocumentSegment] = Field(..., description="List of document segments")
     document_structure: DocumentStructure = Field(..., description="Analyzed document structure")
-    hierarchy: dict[str, list[str]] = Field(default_factory=dict, description="Hierarchical structure of segments")
+    hierarchy: dict[str, list[str]] = Field(..., description="Hierarchical structure of segments (empty dict if none)")
     summary: str = Field(..., description="Summary of segmentation results")
     total_segments: int = Field(..., description="Total number of segments created")
 
@@ -59,6 +59,14 @@ class SegmentSummary(BaseModel):
     summary: str = Field(..., description="Concise summary of the segment")
     key_points: list[str] = Field(..., description="Key points from the segment")
     topics: list[str] = Field(..., description="Main topics covered")
+
+
+# Rebuild models to resolve forward references
+DocumentSegment.model_rebuild()
+SegmentationStrategy.model_rebuild()
+DocumentStructure.model_rebuild()
+SegmentationResult.model_rebuild()
+SegmentSummary.model_rebuild()
 
 
 # Tool for structural segmentation using regex and patterns
@@ -111,6 +119,8 @@ async def segment_by_structure(text: str, min_segment_length: int = 100) -> list
                             start_position=start_pos,
                             end_position=start_pos + len('\n'.join(current_segment)),
                             metadata={"line_start": i - len(current_segment), "line_end": i},
+                            parent_id=None,
+                            child_ids=[],
                         )
                     )
                     start_pos += len('\n'.join(current_segment)) + 1
@@ -135,19 +145,21 @@ async def segment_by_structure(text: str, min_segment_length: int = 100) -> list
                 start_position=start_pos,
                 end_position=len(text),
                 metadata={"line_start": len(lines) - len(current_segment), "line_end": len(lines)},
+                parent_id=None,
+                child_ids=[],
             )
         )
 
     return segments
 
 
-# Step 1: Analyze document structure
+# Step 1: Analyze document structure - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=DocumentStructure,
 )
-async def analyze_document_structure(document_preview: str, doc_length: int) -> str:
+async def _analyze_document_structure_call(document_preview: str, doc_length: int) -> str:
     """Analyze document structure to determine segmentation strategy."""
     return f"""
     You are an expert document analyst. Analyze the structure of this document.
@@ -171,13 +183,20 @@ async def analyze_document_structure(document_preview: str, doc_length: int) -> 
     """
 
 
-# Step 2: Perform semantic segmentation
+# Public wrapper for analyze_document_structure
+async def analyze_document_structure(document_preview: str, doc_length: int) -> DocumentStructure:
+    """Analyze document structure to determine segmentation strategy."""
+    response = await _analyze_document_structure_call(document_preview=document_preview, doc_length=doc_length)
+    return response.parse()
+
+
+# Step 2: Perform semantic segmentation - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=SegmentationResult,
 )
-async def segment_semantically(document: str, strategy: str, segment_types: str) -> str:
+async def _segment_semantically_call(document: str, strategy: str, segment_types: str) -> str:
     """Perform semantic segmentation of document."""
     return f"""
     You are an expert in document segmentation. Segment this document semantically.
@@ -206,13 +225,20 @@ async def segment_semantically(document: str, strategy: str, segment_types: str)
     """
 
 
-# Step 3: Summarize segments
+# Public wrapper for segment_semantically
+async def segment_semantically(document: str, strategy: str, segment_types: str) -> SegmentationResult:
+    """Perform semantic segmentation of document."""
+    response = await _segment_semantically_call(document=document, strategy=strategy, segment_types=segment_types)
+    return response.parse()
+
+
+# Step 3: Summarize segments - Internal LLM call
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=SegmentSummary,
 )
-async def summarize_segment(segment_id: str, title: str, content: str) -> str:
+async def _summarize_segment_call(segment_id: str, title: str, content: str) -> str:
     """Generate summary for a document segment."""
     return f"""
     Summarize this document segment concisely.
@@ -228,6 +254,13 @@ async def summarize_segment(segment_id: str, title: str, content: str) -> str:
 
     Focus on the most important information and insights.
     """
+
+
+# Public wrapper for summarize_segment
+async def summarize_segment(segment_id: str, title: str, content: str) -> SegmentSummary:
+    """Generate summary for a document segment."""
+    response = await _summarize_segment_call(segment_id=segment_id, title=title, content=content)
+    return response.parse()
 
 
 # Main document segmentation function
@@ -297,6 +330,8 @@ async def segment_document(
                     start_position=i,
                     end_position=min(i + chunk_size, len(document)),
                     metadata={"chunk_index": i // chunk_size},
+                    parent_id=None,
+                    child_ids=[],
                 )
             )
 

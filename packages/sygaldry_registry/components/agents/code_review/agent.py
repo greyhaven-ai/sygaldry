@@ -41,15 +41,18 @@ class CodeIssue(BaseModel):
     severity: Literal["critical", "high", "medium", "low", "info"] = Field(..., description="Issue severity")
     category: str = Field(..., description="Category (e.g., 'security', 'performance', 'style')")
     description: str = Field(..., description="Description of the issue")
-    line_number: Optional[int] = Field(None, description="Line number where issue occurs")
+    # Note: All fields must be required for OpenAI schema validation
+    line_number: int | None = Field(..., description="Line number where issue occurs (null if not applicable)")
     suggestion: str = Field(..., description="Suggested fix or improvement")
-    code_snippet: Optional[str] = Field(None, description="Relevant code snippet")
+    code_snippet: str | None = Field(..., description="Relevant code snippet (null if not applicable)")
 
 
 class CodeReviewResult(BaseModel):
     """Complete code review result."""
 
-    issues: list[CodeIssue] = Field(..., description="List of issues found")
+    # Note: Field(...) without description for nested models to avoid OpenAI schema error
+    # OpenAI rejects $ref with additional keywords like 'description'
+    issues: list[CodeIssue] = Field(...)
     summary: str = Field(..., description="Review summary")
     overall_quality: Literal["excellent", "good", "fair", "needs_improvement", "poor"] = Field(
         ..., description="Overall code quality rating"
@@ -58,6 +61,11 @@ class CodeReviewResult(BaseModel):
     maintainability_score: int = Field(..., ge=0, le=100, description="Maintainability score")
     performance_score: int = Field(..., ge=0, le=100, description="Performance score")
     recommendations: list[str] = Field(..., description="General recommendations")
+
+
+# Rebuild models to resolve forward references
+CodeIssue.model_rebuild()
+CodeReviewResult.model_rebuild()
 
 
 @llm.call(provider="openai:completions", model_id="gpt-4o-mini", format=CodeReviewResult)
@@ -170,13 +178,14 @@ async def review_code(
             pass
 
     # Perform LLM code review
-    result = await _llm_review_code(
+    response = await _llm_review_code(
         code=code,
         language=language,
         review_focus=review_focus,
         strict_mode=strict_mode,
         static_analysis_results=static_analysis_summary
     )
+    result = response.parse()
 
     # Optionally create GitHub issues for critical/high severity findings
     if create_github_issues and GITHUB_AVAILABLE and repo:

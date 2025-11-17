@@ -308,9 +308,9 @@ class CharacterSheet(BaseModel):
     initiative_bonus: int = Field(0, description="Initiative modifier")
 
     # Proficiencies
-    skill_proficiencies: list[SkillType] = Field(default_factory=list, description="Proficient skills")
-    expertise_skills: list[SkillType] = Field(default_factory=list, description="Expertise skills")
-    saving_throw_proficiencies: list[AbilityType] = Field(default_factory=list, description="Saving throw proficiencies")
+    skill_proficiencies: list[SkillType] = Field(..., description="Proficient skills (empty list if none)")
+    expertise_skills: list[SkillType] = Field(..., description="Expertise skills (empty list if none)")
+    saving_throw_proficiencies: list[AbilityType] = Field(..., description="Saving throw proficiencies (empty list if none)")
 
     # Combat tracking
     actions_available: int = Field(1, description="Actions remaining this turn")
@@ -320,17 +320,17 @@ class CharacterSheet(BaseModel):
 
     # Resources
     spell_slots: SpellSlots | None = Field(None, description="Spell slots for casters")
-    spells_known: list[str] = Field(default_factory=list, description="Known/prepared spells")
-    cantrips_known: list[str] = Field(default_factory=list, description="Known cantrips")
+    spells_known: list[str] = Field(..., description="Known/prepared spells (empty list if none)")
+    cantrips_known: list[str] = Field(..., description="Known cantrips (empty list if none)")
 
     # Inventory
-    inventory: list[InventoryItem] = Field(default_factory=list, description="Items carried")
+    inventory: list[InventoryItem] = Field(..., description="Items carried (empty list if none)")
     equipped_armor: str | None = Field(None, description="Currently worn armor")
-    equipped_weapons: list[str] = Field(default_factory=list, description="Wielded weapons")
+    equipped_weapons: list[str] = Field(..., description="Wielded weapons (empty list if none)")
     attunement_slots_used: int = Field(0, description="Magic items attuned to")
 
     # Status
-    conditions: list[CharacterCondition] = Field(default_factory=list, description="Active conditions")
+    conditions: list[CharacterCondition] = Field(..., description="Active conditions (empty list if none)")
     exhaustion_level: int = Field(0, description="Exhaustion level (0-6)")
     death_saves_success: int = Field(0, description="Successful death saves")
     death_saves_failure: int = Field(0, description="Failed death saves")
@@ -338,9 +338,9 @@ class CharacterSheet(BaseModel):
     # Character details
     background: str = Field(..., description="Character background story")
     personality_traits: list[str] = Field(..., description="Personality traits")
-    ideals: list[str] = Field(default_factory=list, description="Character ideals")
-    bonds: list[str] = Field(default_factory=list, description="Character bonds")
-    flaws: list[str] = Field(default_factory=list, description="Character flaws")
+    ideals: list[str] = Field(..., description="Character ideals (empty list if none)")
+    bonds: list[str] = Field(..., description="Character bonds (empty list if none)")
+    flaws: list[str] = Field(..., description="Character flaws (empty list if none)")
 
     @validator('proficiency_bonus')
     def calculate_proficiency_bonus(cls, v, values):
@@ -466,7 +466,7 @@ class CombatantInfo(BaseModel):
     is_player: bool = Field(..., description="Whether this is a player character")
     is_surprised: bool = Field(False, description="Whether combatant is surprised")
     has_acted: bool = Field(False, description="Whether they've acted this round")
-    conditions: list[str] = Field(default_factory=list, description="Active conditions")
+    conditions: list[str] = Field(..., description="Active conditions (empty list if none)")
     ac: int = Field(..., description="Armor class")
     current_hp: int = Field(..., description="Current hit points")
     max_hp: int = Field(..., description="Maximum hit points")
@@ -478,9 +478,9 @@ class BattleMap(BaseModel):
 
     width: int = Field(20, description="Map width in squares")
     height: int = Field(20, description="Map height in squares")
-    combatants: dict[str, CombatantInfo] = Field(default_factory=dict, description="Combatant positions")
-    obstacles: list[Position] = Field(default_factory=list, description="Impassable squares")
-    difficult_terrain: list[Position] = Field(default_factory=list, description="Difficult terrain squares")
+    combatants: dict[str, CombatantInfo] = Field(..., description="Combatant positions (empty dict if none)")
+    obstacles: list[Position] = Field(..., description="Impassable squares (empty list if none)")
+    difficult_terrain: list[Position] = Field(..., description="Difficult terrain squares (empty list if none)")
 
     def get_combatant_at(self, pos: Position) -> str | None:
         """Get combatant at a position."""
@@ -531,10 +531,10 @@ class PlayerAction(BaseModel):
     description: str = Field(..., description="Detailed description of the action")
     target: str | None = Field(None, description="Target of the action")
     target_position: Position | None = Field(None, description="Target position for movement")
-    dice_rolls: list[DiceRoll] = Field(default_factory=list, description="Any dice rolls involved")
+    dice_rolls: list[DiceRoll] = Field(..., description="Any dice rolls involved (empty list if none)")
     success: bool | None = Field(None, description="Whether the action succeeded")
-    consequences: list[str] = Field(default_factory=list, description="Results of the action")
-    resources_used: dict[str, int] = Field(default_factory=dict, description="Resources consumed")
+    consequences: list[str] = Field(..., description="Results of the action (empty list if none)")
+    resources_used: dict[str, int] = Field(..., description="Resources consumed (empty dict if none)")
 
 
 class CombatAction(BaseModel):
@@ -548,7 +548,7 @@ class CombatAction(BaseModel):
     damage_roll: DiceRoll | None = Field(None, description="Damage roll if hit")
     hit: bool = Field(..., description="Whether the attack hit")
     damage_dealt: int = Field(default=0, description="Total damage dealt")
-    special_effects: list[str] = Field(default_factory=list, description="Special effects")
+    special_effects: list[str] = Field(..., description="Special effects (empty list if none)")
     advantage: bool = Field(False, description="Whether attack had advantage")
     disadvantage: bool = Field(False, description="Whether attack had disadvantage")
 
@@ -561,7 +561,7 @@ class RoleplayExchange(BaseModel):
     dialogue: str = Field(..., description="What they say")
     tone: str = Field(..., description="Tone of delivery")
     actions: str | None = Field(None, description="Physical actions while speaking")
-    target_audience: list[str] = Field(default_factory=list, description="Who they're speaking to")
+    target_audience: list[str] = Field(..., description="Who they're speaking to (empty list if none)")
     requires_response: bool = Field(True, description="Whether a response is expected")
     skill_check: DiceRoll | None = Field(None, description="Any skill check involved")
 
@@ -575,8 +575,8 @@ class GameEvent(BaseModel):
     participants: list[str] = Field(..., description="Characters involved")
     location: str = Field(..., description="Where it happened")
     timestamp: datetime = Field(..., description="When it happened")
-    consequences: list[str] = Field(default_factory=list, description="Results of the event")
-    xp_awarded: dict[str, int] = Field(default_factory=dict, description="XP awarded to characters")
+    consequences: list[str] = Field(..., description="Results of the event (empty list if none)")
+    xp_awarded: dict[str, int] = Field(..., description="XP awarded to characters (empty dict if none)")
 
 
 class EncounterInfo(BaseModel):
@@ -588,7 +588,7 @@ class EncounterInfo(BaseModel):
     enemies: list[str] = Field(..., description="Enemy types")
     total_xp: int = Field(..., description="Total XP value")
     environment: str = Field(..., description="Environment description")
-    objectives: list[str] = Field(default_factory=list, description="Encounter objectives")
+    objectives: list[str] = Field(..., description="Encounter objectives (empty list if none)")
 
 
 class GameState(BaseModel):
@@ -601,19 +601,19 @@ class GameState(BaseModel):
     location: str = Field(..., description="Current location in the game world")
     scene_description: str = Field(..., description="Description of the current scene")
     active_players: list[PlayerCharacter] = Field(..., description="Active player characters")
-    npcs_present: list[str] = Field(default_factory=list, description="NPCs in the scene")
+    npcs_present: list[str] = Field(..., description="NPCs in the scene (empty list if none)")
 
     # Combat tracking
     combat_round: int = Field(0, description="Current combat round")
-    combat_order: list[str] = Field(default_factory=list, description="Initiative order if in combat")
+    combat_order: list[str] = Field(..., description="Initiative order if in combat (empty list if none)")
     battle_map: BattleMap | None = Field(None, description="Battle map for combat")
     current_encounter: EncounterInfo | None = Field(None, description="Current encounter info")
 
     # Game tracking
-    recent_events: list[GameEvent] = Field(default_factory=list, description="Recent game events")
-    quest_status: dict[str, str] = Field(default_factory=dict, description="Active quests and status")
-    world_state: dict[str, Any] = Field(default_factory=dict, description="World state variables")
-    session_xp_earned: dict[str, int] = Field(default_factory=dict, description="XP earned this session")
+    recent_events: list[GameEvent] = Field(..., description="Recent game events (empty list if none)")
+    quest_status: dict[str, str] = Field(..., description="Active quests and status (empty dict if none)")
+    world_state: dict[str, Any] = Field(..., description="World state variables (empty dict if none)")
+    session_xp_earned: dict[str, int] = Field(..., description="XP earned this session (empty dict if none)")
 
     # Time tracking
     game_time: str = Field("Morning", description="In-game time of day")
@@ -626,16 +626,16 @@ class DMResponse(BaseModel):
 
 
     narration: str = Field(..., description="Narrative description")
-    dice_rolls: list[DiceRoll] = Field(default_factory=list, description="DM's dice rolls")
-    npc_actions: list[PlayerAction] = Field(default_factory=list, description="NPC actions")
-    npc_dialogue: list[RoleplayExchange] = Field(default_factory=list, description="NPC dialogue")
+    dice_rolls: list[DiceRoll] = Field(..., description="DM's dice rolls (empty list if none)")
+    npc_actions: list[PlayerAction] = Field(..., description="NPC actions (empty list if none)")
+    npc_dialogue: list[RoleplayExchange] = Field(..., description="NPC dialogue (empty list if none)")
     scene_changes: str | None = Field(None, description="Changes to the scene")
     phase_change: GamePhase | None = Field(None, description="New game phase if changed")
-    player_prompts: dict[str, str] = Field(default_factory=dict, description="Specific prompts for players")
+    player_prompts: dict[str, str] = Field(..., description="Specific prompts for players (empty dict if none)")
     rules_clarification: str | None = Field(None, description="Rules explanations if needed")
-    xp_awards: dict[str, int] = Field(default_factory=dict, description="XP awarded this turn")
+    xp_awards: dict[str, int] = Field(..., description="XP awarded this turn (empty dict if none)")
     battle_map_update: BattleMap | None = Field(None, description="Updated battle map")
-    conditions_applied: dict[str, list[str]] = Field(default_factory=dict, description="Conditions applied to characters")
+    conditions_applied: dict[str, list[str]] = Field(..., description="Conditions applied to characters (empty dict if none)")
     secret_notes: str | None = Field(None, description="DM notes not shared with players")
 
 
@@ -646,9 +646,30 @@ class HumanInputRequest(BaseModel):
     request_type: str = Field(..., description="Type of input needed")
     prompt: str = Field(..., description="Prompt for the human player")
     context: str = Field(..., description="Context for the decision")
-    options: list[str] = Field(default_factory=list, description="Available options if applicable")
+    options: list[str] = Field(..., description="Available options if applicable (empty list if none)")
     time_limit: int | None = Field(None, description="Time limit in seconds")
     can_interrupt: bool = Field(True, description="Whether player can interrupt ongoing RP")
+
+
+# Rebuild models to resolve forward references
+DiceRoll.model_rebuild()
+Position.model_rebuild()
+CharacterStats.model_rebuild()
+SpellSlots.model_rebuild()
+InventoryItem.model_rebuild()
+CharacterCondition.model_rebuild()
+CharacterSheet.model_rebuild()
+CombatantInfo.model_rebuild()
+BattleMap.model_rebuild()
+PlayerCharacter.model_rebuild()
+PlayerAction.model_rebuild()
+CombatAction.model_rebuild()
+RoleplayExchange.model_rebuild()
+GameEvent.model_rebuild()
+EncounterInfo.model_rebuild()
+GameState.model_rebuild()
+DMResponse.model_rebuild()
+HumanInputRequest.model_rebuild()
 
 
 # SQLite State Management Functions
@@ -977,6 +998,7 @@ async def create_campaign_backup(db_path: str, backup_name: str | None = None) -
 
 
 # Enhanced tool functions with proper rule enforcement
+@llm.tool
 async def roll_ability_check(
     character_name: str,
     ability: str,
@@ -1036,6 +1058,7 @@ async def roll_ability_check(
     return "\n".join(details)
 
 
+@llm.tool
 async def roll_saving_throw(
     character_name: str,
     ability: str,
@@ -1095,6 +1118,7 @@ async def roll_saving_throw(
     return "\n".join(output)
 
 
+@llm.tool
 async def roll_attack(
     attacker_name: str,
     target_ac: int,
@@ -1185,6 +1209,7 @@ async def roll_attack(
     return "\n".join(output)
 
 
+@llm.tool
 async def calculate_movement(
     character_name: str,
     from_position: tuple[int, int],
@@ -1241,6 +1266,7 @@ async def calculate_movement(
     return "\n".join(output)
 
 
+@llm.tool
 async def check_spell_requirements(
     caster_name: str,
     spell_name: str,
@@ -1314,6 +1340,7 @@ async def check_spell_requirements(
         return f"Error: {str(e)}"
 
 
+@llm.tool
 async def apply_condition(
     character_name: str,
     condition_name: str,
@@ -1354,6 +1381,7 @@ async def apply_condition(
         return f"Error: {str(e)}"
 
 
+@llm.tool
 async def calculate_encounter_xp(monster_names: list[str], party_size: int, party_levels: list[int]) -> str:
     """
     Calculate XP for an encounter.
@@ -1457,6 +1485,7 @@ async def calculate_encounter_xp(monster_names: list[str], party_size: int, part
     return "\n".join(output)
 
 
+@llm.tool
 async def manage_rest(
     character_name: str,
     rest_type: str,
@@ -1535,6 +1564,7 @@ async def manage_rest(
 
 
 # Existing tool functions remain the same
+@llm.tool
 async def roll_for_action(
     dice_type: str, num_dice: int = 1, modifier: int = 0, purpose: str = "", advantage: bool = False, disadvantage: bool = False
 ) -> str:
@@ -1569,6 +1599,7 @@ async def roll_for_action(
     return format_roll_result(result)
 
 
+@llm.tool
 async def lookup_spell(spell_name: str) -> str:
     """
     Look up D&D 5e spell information.
@@ -1595,6 +1626,7 @@ Classes: {', '.join(spell.classes)}"""
         return str(e)
 
 
+@llm.tool
 async def lookup_monster(monster_name: str) -> str:
     """
     Look up D&D 5e monster statistics.
@@ -1624,6 +1656,7 @@ Actions: {len(monster.actions)} available"""
         return str(e)
 
 
+@llm.tool
 async def lookup_equipment(item_name: str) -> str:
     """
     Look up D&D 5e equipment information.
@@ -1660,6 +1693,7 @@ async def lookup_equipment(item_name: str) -> str:
         return str(e)
 
 
+@llm.tool
 async def search_rules(content_type: str, query: str = "") -> str:
     """
     Search D&D 5e rules and content.
@@ -1682,6 +1716,7 @@ async def search_rules(content_type: str, query: str = "") -> str:
         return str(e)
 
 
+@llm.tool
 async def lookup_race(race_name: str) -> str:
     """
     Look up D&D 5e race information.
@@ -1717,6 +1752,7 @@ async def lookup_race(race_name: str) -> str:
         return str(e)
 
 
+@llm.tool
 async def lookup_condition(condition_name: str) -> str:
     """
     Look up D&D 5e condition effects.
@@ -1734,6 +1770,7 @@ async def lookup_condition(condition_name: str) -> str:
         return str(e)
 
 
+@llm.tool
 async def lookup_skill(skill_name: str) -> str:
     """
     Look up D&D 5e skill information.
@@ -1751,6 +1788,7 @@ async def lookup_skill(skill_name: str) -> str:
         return str(e)
 
 
+@llm.tool
 async def lookup_magic_item(item_name: str) -> str:
     """
     Look up D&D 5e magic item information.
@@ -1778,6 +1816,7 @@ async def lookup_magic_item(item_name: str) -> str:
         return str(e)
 
 
+@llm.tool
 async def search_content(
     content_type: str, query: str = "", level: int | None = None, school: str | None = None, challenge_rating: float | None = None
 ) -> str:
@@ -1837,10 +1876,9 @@ async def search_content(
         lookup_skill,
         lookup_magic_item,
         search_content,
-        search_content,
     ],
 )
-def generate_dm_response(
+async def _generate_dm_response_call(
     game_state: GameState,
     recent_actions: list[PlayerAction],
     player_requests: dict[str, str],
@@ -1947,10 +1985,9 @@ def generate_dm_response(
         lookup_spell,
         lookup_equipment,
         lookup_skill,
-        lookup_skill,
     ],
 )
-def generate_ai_player_action(
+async def _generate_ai_player_action_call(
     character_name: str,
     level: int,
     race: str,
@@ -2055,7 +2092,7 @@ def generate_ai_player_action(
     model_id="gpt-4o-mini",
     format=RoleplayExchange,
 )
-def generate_character_dialogue(
+async def _generate_character_dialogue_call(
     character_name: str,
     personality: str,
     speaking_style: str,
@@ -2098,6 +2135,27 @@ def generate_character_dialogue(
 
     Provide your character's response with appropriate dialogue and actions.
     """
+
+
+# Public wrapper function for generate_dm_response
+async def generate_dm_response(
+    game_state: GameState,
+    recent_actions: list[PlayerAction],
+    player_requests: dict[str, str],
+    dm_notes: str = "",
+    provider: str = "openai",
+    model: str = "gpt-4o-mini",
+) -> DMResponse:
+    """Generate DM response based on game state and player actions."""
+    response = await _generate_dm_response_call(
+        game_state=game_state,
+        recent_actions=recent_actions,
+        player_requests=player_requests,
+        dm_notes=dm_notes,
+        provider=provider,
+        model=model,
+    )
+    return response.parse()
 
 
 async def wait_for_human_input(request: HumanInputRequest, timeout: int | None = None) -> str | None:

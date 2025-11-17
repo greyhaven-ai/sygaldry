@@ -147,6 +147,15 @@ class DecisionQuality(BaseModel):
     confidence_level: float = Field(..., description="Confidence in the assessment (0-1)")
 
 
+# Rebuild models to resolve forward references
+DecisionContext.model_rebuild()
+BiasAnalysis.model_rebuild()
+QualityAssessment.model_rebuild()
+DecisionAnalysis.model_rebuild()
+DecisionFramework.model_rebuild()
+DecisionQuality.model_rebuild()
+
+
 def _get_analyze_decision_context_prompt(
     decision: str, background: str = "", stakeholders: str = "", constraints: str = "", timeline: str = ""
 ) -> str:
@@ -201,11 +210,22 @@ def _get_analyze_decision_context_prompt(
     model_id="gpt-4o",
     format=DecisionContext,
 )
-def analyze_decision_context(
+async def _analyze_decision_context_call(
     decision: str, background: str = "", stakeholders: str = "", constraints: str = "", timeline: str = ""
 ) -> str:
     """Analyze and structure the decision context."""
     return _get_analyze_decision_context_prompt(decision, background, stakeholders, constraints, timeline)
+
+
+# Public wrapper for analyze_decision_context
+async def analyze_decision_context(
+    decision: str, background: str = "", stakeholders: str = "", constraints: str = "", timeline: str = ""
+) -> DecisionContext:
+    """Analyze and structure the decision context."""
+    response = await _analyze_decision_context_call(
+        decision=decision, background=background, stakeholders=stakeholders, constraints=constraints, timeline=timeline
+    )
+    return response.parse()
 
 
 def _get_analyze_decision_alternatives_prompt(
@@ -256,11 +276,23 @@ def _get_analyze_decision_alternatives_prompt(
     model_id="gpt-4o",
     format=list[DecisionAnalysis],
 )
-def analyze_decision_alternatives(
+async def _analyze_decision_alternatives_call(
     decision_context: DecisionContext, alternatives: list[str], evaluation_criteria: str = "", success_metrics: str = ""
 ) -> str:
     """Analyze decision alternatives comprehensively."""
     return _get_analyze_decision_alternatives_prompt(decision_context, alternatives, evaluation_criteria, success_metrics)
+
+
+# Public wrapper for analyze_decision_alternatives
+async def analyze_decision_alternatives(
+    decision_context: DecisionContext, alternatives: list[str], evaluation_criteria: str = "", success_metrics: str = ""
+) -> list[DecisionAnalysis]:
+    """Analyze decision alternatives comprehensively."""
+    response = await _analyze_decision_alternatives_call(
+        decision_context=decision_context, alternatives=alternatives,
+        evaluation_criteria=evaluation_criteria, success_metrics=success_metrics
+    )
+    return response.parse()
 
 
 def _get_assess_decision_quality_dimensions_prompt(
@@ -319,11 +351,23 @@ def _get_assess_decision_quality_dimensions_prompt(
     model_id="gpt-4o",
     format=list[QualityAssessment],
 )
-def assess_decision_quality_dimensions(
+async def _assess_decision_quality_dimensions_call(
     decision_context: DecisionContext, decision_process: str, information_available: str = "", alternatives_considered: str = ""
 ) -> str:
     """Assess decision quality across multiple dimensions."""
     return _get_assess_decision_quality_dimensions_prompt(decision_context, decision_process, information_available, alternatives_considered)
+
+
+# Public wrapper for assess_decision_quality_dimensions
+async def assess_decision_quality_dimensions(
+    decision_context: DecisionContext, decision_process: str, information_available: str = "", alternatives_considered: str = ""
+) -> list[QualityAssessment]:
+    """Assess decision quality across multiple dimensions."""
+    response = await _assess_decision_quality_dimensions_call(
+        decision_context=decision_context, decision_process=decision_process,
+        information_available=information_available, alternatives_considered=alternatives_considered
+    )
+    return response.parse()
 
 
 def _get_analyze_cognitive_biases_prompt(
@@ -384,11 +428,23 @@ def _get_analyze_cognitive_biases_prompt(
     model_id="gpt-4o",
     format=list[BiasAnalysis],
 )
-def analyze_cognitive_biases(
+async def _analyze_cognitive_biases_call(
     decision_context: DecisionContext, decision_process: str, information_sources: str = "", decision_makers: str = ""
 ) -> str:
     """Analyze potential cognitive biases affecting the decision."""
     return _get_analyze_cognitive_biases_prompt(decision_context, decision_process, information_sources, decision_makers)
+
+
+# Public wrapper for analyze_cognitive_biases
+async def analyze_cognitive_biases(
+    decision_context: DecisionContext, decision_process: str, information_sources: str = "", decision_makers: str = ""
+) -> list[BiasAnalysis]:
+    """Analyze potential cognitive biases affecting the decision."""
+    response = await _analyze_cognitive_biases_call(
+        decision_context=decision_context, decision_process=decision_process,
+        information_sources=information_sources, decision_makers=decision_makers
+    )
+    return response.parse()
 
 
 def _get_recommend_decision_framework_prompt(
@@ -440,11 +496,22 @@ def _get_recommend_decision_framework_prompt(
     model_id="gpt-4o",
     format=DecisionFramework,
 )
-def recommend_decision_framework(
+async def _recommend_decision_framework_call(
     decision_context: DecisionContext, quality_assessment: list[QualityAssessment], key_challenges: str = ""
 ) -> str:
     """Recommend appropriate decision-making framework."""
     return _get_recommend_decision_framework_prompt(decision_context, quality_assessment, key_challenges)
+
+
+# Public wrapper for recommend_decision_framework
+async def recommend_decision_framework(
+    decision_context: DecisionContext, quality_assessment: list[QualityAssessment], key_challenges: str = ""
+) -> DecisionFramework:
+    """Recommend appropriate decision-making framework."""
+    response = await _recommend_decision_framework_call(
+        decision_context=decision_context, quality_assessment=quality_assessment, key_challenges=key_challenges
+    )
+    return response.parse()
 
 
 def _get_synthesize_decision_quality_prompt(
@@ -508,7 +575,7 @@ def _get_synthesize_decision_quality_prompt(
     model_id="gpt-4o",
     format=DecisionQuality,
 )
-def synthesize_decision_quality(
+async def _synthesize_decision_quality_call(
     decision: str,
     context_analysis: DecisionContext,
     alternatives_analysis: list[DecisionAnalysis],
@@ -517,6 +584,22 @@ def synthesize_decision_quality(
 ) -> str:
     """Synthesize complete decision quality assessment."""
     return _get_synthesize_decision_quality_prompt(decision, context_analysis, alternatives_analysis, quality_assessments, bias_analysis)
+
+
+# Public wrapper for synthesize_decision_quality
+async def synthesize_decision_quality(
+    decision: str,
+    context_analysis: DecisionContext,
+    alternatives_analysis: list[DecisionAnalysis],
+    quality_assessments: list[QualityAssessment],
+    bias_analysis: list[BiasAnalysis],
+) -> DecisionQuality:
+    """Synthesize complete decision quality assessment."""
+    response = await _synthesize_decision_quality_call(
+        decision=decision, context_analysis=context_analysis, alternatives_analysis=alternatives_analysis,
+        quality_assessments=quality_assessments, bias_analysis=bias_analysis
+    )
+    return response.parse()
 
 
 async def decision_quality_assessor(

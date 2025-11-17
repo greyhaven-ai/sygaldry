@@ -19,7 +19,9 @@ class SummaryAnalysis(BaseModel):
     """Analysis of text for summarization."""
 
     main_topic: str = Field(..., description="Main topic or theme")
-    key_points: list[KeyPoint] = Field(..., description="Key points extracted")
+    # Note: Field(...) without description for nested model list to avoid OpenAI schema error
+    # OpenAI rejects $ref with additional keywords like 'description'
+    key_points: list[KeyPoint] = Field(...)
     target_audience: str = Field(..., description="Identified target audience")
     complexity_level: Literal["simple", "moderate", "complex", "technical"] = Field(..., description="Text complexity")
     recommended_length: int = Field(..., description="Recommended summary length in words")
@@ -55,13 +57,22 @@ class SummaryValidation(BaseModel):
     improvements: list[str] = Field(..., description="Suggested improvements")
 
 
+# Rebuild models to resolve forward references
+KeyPoint.model_rebuild()
+SummaryAnalysis.model_rebuild()
+Summary.model_rebuild()
+ProgressiveSummary.model_rebuild()
+SummaryValidation.model_rebuild()
+
+
 # Step 1: Analyze text for summarization (with CoT)
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=SummaryAnalysis,
 )
-async def analyze_for_summary(text: str) -> str:
+async def _analyze_for_summary_call(text: str) -> str:
     """Analyze text using chain-of-thought reasoning."""
     return f"""
     You are an expert text analyst preparing for summarization.
@@ -91,13 +102,21 @@ async def analyze_for_summary(text: str) -> str:
     """
 
 
+# Public wrapper for analyze_for_summary
+async def analyze_for_summary(text: str) -> SummaryAnalysis:
+    """Analyze text using chain-of-thought reasoning."""
+    response = await _analyze_for_summary_call(text)
+    return response.parse()
+
+
 # Step 2: Generate summary with style (few-shot)
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=Summary,
 )
-async def generate_summary(
+async def _generate_summary_call(
     text: str,
     main_topic: str,
     key_points: str,
@@ -137,13 +156,41 @@ async def generate_summary(
     """
 
 
+# Public wrapper for generate_summary
+async def generate_summary(
+    text: str,
+    main_topic: str,
+    key_points: str,
+    target_audience: str,
+    complexity_level: str,
+    target_length: int,
+    style: str,
+    few_shot_examples: str,
+    style_guidelines: str,
+) -> Summary:
+    """Generate summary with few-shot examples."""
+    response = await _generate_summary_call(
+        text=text,
+        main_topic=main_topic,
+        key_points=key_points,
+        target_audience=target_audience,
+        complexity_level=complexity_level,
+        target_length=target_length,
+        style=style,
+        few_shot_examples=few_shot_examples,
+        style_guidelines=style_guidelines,
+    )
+    return response.parse()
+
+
 # Step 3: Progressive summarization chain
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=ProgressiveSummary,
 )
-async def generate_progressive_summary(text: str, key_points: str) -> str:
+async def _generate_progressive_summary_call(text: str, key_points: str) -> str:
     """Generate summaries at multiple levels of detail."""
     return f"""
     Create progressive summaries of increasing detail.
@@ -162,13 +209,21 @@ async def generate_progressive_summary(text: str, key_points: str) -> str:
     """
 
 
+# Public wrapper for generate_progressive_summary
+async def generate_progressive_summary(text: str, key_points: str) -> ProgressiveSummary:
+    """Generate summaries at multiple levels of detail."""
+    response = await _generate_progressive_summary_call(text=text, key_points=key_points)
+    return response.parse()
+
+
 # Step 4: Validate and refine summary
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=SummaryValidation,
 )
-async def validate_summary(original_text: str, summary: str, key_points: str) -> str:
+async def _validate_summary_call(original_text: str, summary: str, key_points: str) -> str:
     """Validate summary accuracy and quality."""
     return f"""
     Validate this summary against the original text.
@@ -186,6 +241,13 @@ async def validate_summary(original_text: str, summary: str, key_points: str) ->
 
     Provide specific feedback and improvement suggestions.
     """
+
+
+# Public wrapper for validate_summary
+async def validate_summary(original_text: str, summary: str, key_points: str) -> SummaryValidation:
+    """Validate summary accuracy and quality."""
+    response = await _validate_summary_call(original_text=original_text, summary=summary, key_points=key_points)
+    return response.parse()
 
 
 # Main summarization function with advanced chaining

@@ -64,7 +64,7 @@ class GameStrategy(BaseModel):
     expected_payoff: str = Field(..., description="Expected payoff or outcome")
     risks: list[str] = Field(..., description="Potential risks or downsides")
     counter_strategies: list[str] = Field(..., description="Potential counter-strategies")
-    implementation_requirements: list[str] = Field(default_factory=list, description="Requirements to implement")
+    implementation_requirements: list[str] = Field(..., description="Requirements to implement (empty list if none)")
 
 
 class GameOutcome(BaseModel):
@@ -91,7 +91,7 @@ class GameScenario(BaseModel):
     information_structure: str = Field(..., description="Information available to players")
     payoff_structure: str = Field(..., description="How payoffs are determined")
     time_horizon: str = Field(..., description="Single round, repeated, or infinite")
-    external_factors: list[str] = Field(default_factory=list, description="External factors affecting the game")
+    external_factors: list[str] = Field(..., description="External factors affecting the game (empty list if none)")
     real_world_context: str = Field(default="", description="Real-world context or application")
 
 
@@ -106,8 +106,16 @@ class GameAnalysis(BaseModel):
     sensitivity_analysis: list[str] = Field(..., description="How outcomes change with parameter changes")
     real_world_applications: list[str] = Field(..., description="Real-world applications and examples")
     limitations: list[str] = Field(..., description="Limitations of the analysis")
-    policy_implications: list[str] = Field(default_factory=list, description="Policy recommendations if applicable")
-    ethical_considerations: list[str] = Field(default_factory=list, description="Ethical aspects to consider")
+    policy_implications: list[str] = Field(..., description="Policy recommendations if applicable (empty list if none)")
+    ethical_considerations: list[str] = Field(..., description="Ethical aspects to consider (empty list if none)")
+
+
+# Rebuild models to resolve forward references
+PlayerProfile.model_rebuild()
+GameStrategy.model_rebuild()
+GameOutcome.model_rebuild()
+GameScenario.model_rebuild()
+GameAnalysis.model_rebuild()
 
 
 @llm.call(
@@ -115,7 +123,7 @@ class GameAnalysis(BaseModel):
     model_id="gpt-4o",
     format=GameScenario,
 )
-def structure_game_scenario(situation: str, context: str = "", stakeholders: str = "", objectives: str = "") -> str:
+async def _structure_game_scenario_call(situation: str, context: str = "", stakeholders: str = "", objectives: str = "") -> str:
     """Structure and define the game theory scenario."""
     return f"""
     SYSTEM:
@@ -155,12 +163,19 @@ def structure_game_scenario(situation: str, context: str = "", stakeholders: str
     """
 
 
+# Public wrapper for structure_game_scenario
+async def structure_game_scenario(situation: str, context: str = "", stakeholders: str = "", objectives: str = "") -> GameScenario:
+    """Structure and define the game theory scenario."""
+    response = await _structure_game_scenario_call(situation=situation, context=context, stakeholders=stakeholders, objectives=objectives)
+    return response.parse()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=dict[str, list[GameStrategy]],
 )
-def analyze_player_strategies(
+async def _analyze_player_strategies_call(
     game_scenario: GameScenario, player_profiles: list[PlayerProfile], game_rules: list[str], payoff_structure: str
 ) -> str:
     """Analyze available strategies for each player."""
@@ -207,7 +222,7 @@ def analyze_player_strategies(
     model_id="gpt-4o",
     format=list[str],
 )
-def analyze_equilibria(
+async def _analyze_equilibria_call(
     game_scenario: GameScenario,
     player_strategies: dict[str, list[GameStrategy]],
     payoff_structure: str,
@@ -253,7 +268,7 @@ def analyze_equilibria(
     model_id="gpt-4o",
     format=list[GameOutcome],
 )
-def predict_game_outcomes(
+async def _predict_game_outcomes_call(
     game_scenario: GameScenario, equilibrium_analysis: list[str], player_characteristics: str, environmental_factors: str = ""
 ) -> str:
     """Predict likely game outcomes with probabilities."""
@@ -298,7 +313,7 @@ def predict_game_outcomes(
     model_id="gpt-4o",
     format=GameAnalysis,
 )
-def synthesize_game_analysis(
+async def _synthesize_game_analysis_call(
     game_scenario: GameScenario,
     player_strategies: dict[str, list[GameStrategy]],
     equilibrium_analysis: list[str],

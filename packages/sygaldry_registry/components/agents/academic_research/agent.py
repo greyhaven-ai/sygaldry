@@ -49,15 +49,16 @@ class ResearchPaperQuery(BaseModel):
     """Research paper search specification."""
 
     topic: str = Field(..., description="Research topic or keywords")
-    field: ResearchField | None = Field(None, description="Academic field")
-    author_requirements: list[str] = Field(default_factory=list, description="Author qualifications (e.g., 'PhD', 'from MIT')")
-    publication_venue: PublicationVenue | None = Field("any", description="Type of publication venue")
+    # Note: All fields must be required for OpenAI schema validation
+    field: ResearchField | None = Field(..., description="Academic field (null if not specified)")
+    author_requirements: list[str] = Field(..., description="Author qualifications (e.g., 'PhD', 'from MIT') - empty list if none")
+    publication_venue: PublicationVenue | None = Field(..., description="Type of publication venue (null if any)")
     journal_requirements: list[str] = Field(
-        default_factory=list, description="Journal requirements (e.g., 'major US journal', 'impact factor > 5')"
+        ..., description="Journal requirements (e.g., 'major US journal', 'impact factor > 5') - empty list if none"
     )
-    time_period: str | None = Field(None, description="Publication time period")
-    methodology_focus: str | None = Field(None, description="Specific methodology or approach")
-    citation_threshold: int | None = Field(None, description="Minimum citation count")
+    time_period: str | None = Field(..., description="Publication time period (null if not specified)")
+    methodology_focus: str | None = Field(..., description="Specific methodology or approach (null if not specified)")
+    citation_threshold: int | None = Field(..., description="Minimum citation count (null if not specified)")
 
 
 class AcademicResearchResponse(BaseModel):
@@ -66,20 +67,27 @@ class AcademicResearchResponse(BaseModel):
     webset_id: str = Field(..., description="ID of the created webset")
     search_query: str = Field(..., description="Search query used")
     research_field: str = Field(..., description="Academic field searched")
-    filters: list[str] = Field(default_factory=list, description="Filters applied to the search")
-    enrichments: list[str] = Field(default_factory=list, description="Data enrichments requested")
-    estimated_papers: int | None = Field(None, description="Estimated number of papers found")
-    publication_types: list[str] = Field(default_factory=list, description="Types of publications included")
+    # Note: All fields must be required for OpenAI schema validation
+    filters: list[str] = Field(..., description="Filters applied to the search (empty list if none)")
+    enrichments: list[str] = Field(..., description="Data enrichments requested (empty list if none)")
+    estimated_papers: int | None = Field(..., description="Estimated number of papers found (null if unknown)")
+    publication_types: list[str] = Field(..., description="Types of publications included (empty list if none)")
     status: str = Field(..., description="Current status of the search")
 
 
+# Rebuild models to resolve forward references
+ResearchPaperQuery.model_rebuild()
+AcademicResearchResponse.model_rebuild()
+
+
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=AcademicResearchResponse,
     tools=[create_webset, get_webset_status, list_webset_items] if create_webset else [],
 )
-async def academic_research_agent(
+async def _academic_research_agent_call(
     topic: str,
     field: ResearchField | None = None,
     author_requirements: list[str] | None = None,
@@ -177,6 +185,51 @@ Methodology Focus: {methodology_focus}
 Citation Threshold: {citation_req}
 
 Create a webset to find research papers matching these criteria."""
+
+
+# Public wrapper - returns parsed AcademicResearchResponse
+async def academic_research_agent(
+    topic: str,
+    field: ResearchField | None = None,
+    author_requirements: list[str] | None = None,
+    publication_venue: PublicationVenue | None = "any",
+    journal_requirements: list[str] | None = None,
+    time_period: str | None = None,
+    methodology_focus: str | None = None,
+    citation_threshold: int | None = None,
+    llm_provider: str = "openai",
+    model: str = "gpt-4o-mini",
+) -> AcademicResearchResponse:
+    """Find academic research papers using Exa websets.
+
+    Args:
+        topic: Research topic or keywords
+        field: Academic field
+        author_requirements: Author qualifications
+        publication_venue: Type of publication venue
+        journal_requirements: Journal requirements
+        time_period: Publication time period
+        methodology_focus: Specific methodology or approach
+        citation_threshold: Minimum citation count
+        llm_provider: LLM provider to use
+        model: Model to use
+
+    Returns:
+        AcademicResearchResponse with webset details
+    """
+    response = await _academic_research_agent_call(
+        topic=topic,
+        field=field,
+        author_requirements=author_requirements,
+        publication_venue=publication_venue,
+        journal_requirements=journal_requirements,
+        time_period=time_period,
+        methodology_focus=methodology_focus,
+        citation_threshold=citation_threshold,
+        llm_provider=llm_provider,
+        model=model
+    )
+    return response.parse()
 
 
 # Convenience functions for common research searches

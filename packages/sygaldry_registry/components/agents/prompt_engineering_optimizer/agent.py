@@ -112,10 +112,12 @@ class PromptOptimization(BaseModel):
     """Complete prompt optimization analysis."""
 
     original_prompt: str = Field(..., description="The original prompt")
-    analysis: PromptAnalysis = Field(..., description="Analysis of the original prompt")
-    variants: list[PromptVariant] = Field(..., description="Generated prompt variants")
-    test_results: list[TestResult] = Field(..., description="Test results for variants")
-    ab_test_results: list[ABTestResult] = Field(..., description="A/B test results")
+    # Note: Field(...) without description for nested models to avoid OpenAI schema error
+    # OpenAI rejects $ref with additional keywords like 'description'
+    analysis: PromptAnalysis = Field(...)
+    variants: list[PromptVariant] = Field(...)
+    test_results: list[TestResult] = Field(...)
+    ab_test_results: list[ABTestResult] = Field(...)
     best_variant_id: str = Field(..., description="ID of the best performing variant")
     improvement_summary: str = Field(..., description="Summary of improvements achieved")
     recommendations: list[str] = Field(..., description="Additional recommendations")
@@ -125,7 +127,8 @@ class PromptOptimization(BaseModel):
 class OptimizationResult(BaseModel):
     """Final optimization result with recommendations."""
 
-    optimization: PromptOptimization
+    # Note: Field(...) without description for nested models
+    optimization: PromptOptimization = Field(...)
     final_prompt: str = Field(..., description="The final optimized prompt")
     performance_improvement: float = Field(..., description="Performance improvement percentage")
     key_changes: list[str] = Field(..., description="Key changes made to the prompt")
@@ -135,12 +138,22 @@ class OptimizationResult(BaseModel):
     next_steps: list[str] = Field(..., description="Recommended next steps for further optimization")
 
 
+# Rebuild models to resolve forward references
+PromptAnalysis.model_rebuild()
+PromptVariant.model_rebuild()
+TestResult.model_rebuild()
+ABTestResult.model_rebuild()
+PromptOptimization.model_rebuild()
+OptimizationResult.model_rebuild()
+
+
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=PromptAnalysis,
 )
-def analyze_prompt_effectiveness(
+async def _analyze_prompt_effectiveness_call(
     prompt: str, task_context: str = "", target_audience: str = "", success_criteria: str = ""
 ) -> str:
     """Analyze a prompt for effectiveness and identify issues."""
@@ -188,12 +201,37 @@ def analyze_prompt_effectiveness(
     """
 
 
+# Public wrapper - returns parsed PromptAnalysis
+async def analyze_prompt_effectiveness(
+    prompt: str, task_context: str = "", target_audience: str = "", success_criteria: str = ""
+) -> PromptAnalysis:
+    """Analyze a prompt for effectiveness and identify issues.
+
+    Args:
+        prompt: The prompt to analyze
+        task_context: Context about the task
+        target_audience: Target audience or use case
+        success_criteria: Criteria for measuring success
+
+    Returns:
+        PromptAnalysis with scores and identified issues
+    """
+    response = await _analyze_prompt_effectiveness_call(
+        prompt=prompt,
+        task_context=task_context,
+        target_audience=target_audience,
+        success_criteria=success_criteria
+    )
+    return response.parse()
+
+
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=list[PromptVariant],
 )
-def generate_prompt_variants(
+async def _generate_prompt_variants_call(
     original_prompt: str, analysis_results: PromptAnalysis, priority_issues: list[str], optimization_goals: str = ""
 ) -> str:
     """Generate optimized prompt variants."""
@@ -240,12 +278,37 @@ def generate_prompt_variants(
     """
 
 
+# Public wrapper - returns parsed list[PromptVariant]
+async def generate_prompt_variants(
+    original_prompt: str, analysis_results: PromptAnalysis, priority_issues: list[str], optimization_goals: str = ""
+) -> list[PromptVariant]:
+    """Generate optimized prompt variants.
+
+    Args:
+        original_prompt: The original prompt to optimize
+        analysis_results: Results from prompt analysis
+        priority_issues: Top priority issues to address
+        optimization_goals: Specific optimization goals
+
+    Returns:
+        List of optimized prompt variants
+    """
+    response = await _generate_prompt_variants_call(
+        original_prompt=original_prompt,
+        analysis_results=analysis_results,
+        priority_issues=priority_issues,
+        optimization_goals=optimization_goals
+    )
+    return response.parse()
+
+
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=TestResult,
 )
-def test_prompt_variant(
+async def _test_prompt_variant_call(
     variant: PromptVariant,
     test_input: str,
     expected_output_type: str = "",
@@ -293,12 +356,43 @@ def test_prompt_variant(
     """
 
 
+# Public wrapper - returns parsed TestResult
+async def test_prompt_variant(
+    variant: PromptVariant,
+    test_input: str,
+    expected_output_type: str = "",
+    evaluation_context: str = "",
+    success_criteria: str = "",
+) -> TestResult:
+    """Test a prompt variant and evaluate its performance.
+
+    Args:
+        variant: The prompt variant to test
+        test_input: Test input to use
+        expected_output_type: Expected type of output
+        evaluation_context: Context for evaluation
+        success_criteria: Success criteria
+
+    Returns:
+        TestResult with quality scores and evaluation
+    """
+    response = await _test_prompt_variant_call(
+        variant=variant,
+        test_input=test_input,
+        expected_output_type=expected_output_type,
+        evaluation_context=evaluation_context,
+        success_criteria=success_criteria
+    )
+    return response.parse()
+
+
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=ABTestResult,
 )
-def compare_variants_ab_test(
+async def _compare_variants_ab_test_call(
     variant_a: PromptVariant,
     test_results_a: list[TestResult],
     variant_b: PromptVariant,
@@ -340,12 +434,43 @@ def compare_variants_ab_test(
     """
 
 
+# Public wrapper - returns parsed ABTestResult
+async def compare_variants_ab_test(
+    variant_a: PromptVariant,
+    test_results_a: list[TestResult],
+    variant_b: PromptVariant,
+    test_results_b: list[TestResult],
+    evaluation_context: str = "",
+) -> ABTestResult:
+    """Perform A/B testing comparison between two variants.
+
+    Args:
+        variant_a: First variant to compare
+        test_results_a: Test results for variant A
+        variant_b: Second variant to compare
+        test_results_b: Test results for variant B
+        evaluation_context: Context for evaluation
+
+    Returns:
+        ABTestResult with winner and performance delta
+    """
+    response = await _compare_variants_ab_test_call(
+        variant_a=variant_a,
+        test_results_a=test_results_a,
+        variant_b=variant_b,
+        test_results_b=test_results_b,
+        evaluation_context=evaluation_context
+    )
+    return response.parse()
+
+
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=OptimizationResult,
 )
-def synthesize_optimization_results(
+async def _synthesize_optimization_results_call(
     original_prompt: str,
     optimization_analysis: PromptOptimization,
     test_results: list[TestResult],
@@ -386,6 +511,36 @@ def synthesize_optimization_results(
 
     Provide the final optimized prompt with comprehensive recommendations.
     """
+
+
+# Public wrapper - returns parsed OptimizationResult
+async def synthesize_optimization_results(
+    original_prompt: str,
+    optimization_analysis: PromptOptimization,
+    test_results: list[TestResult],
+    ab_test_results: list[ABTestResult],
+    performance_goals: str = "",
+) -> OptimizationResult:
+    """Synthesize optimization results into final recommendations.
+
+    Args:
+        original_prompt: The original prompt
+        optimization_analysis: Optimization analysis results
+        test_results: All test results
+        ab_test_results: A/B test results
+        performance_goals: Performance goals
+
+    Returns:
+        OptimizationResult with final optimized prompt and guidelines
+    """
+    response = await _synthesize_optimization_results_call(
+        original_prompt=original_prompt,
+        optimization_analysis=optimization_analysis,
+        test_results=test_results,
+        ab_test_results=ab_test_results,
+        performance_goals=performance_goals
+    )
+    return response.parse()
 
 
 async def run_variant_tests(

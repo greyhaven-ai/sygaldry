@@ -36,12 +36,13 @@ class SourcingRequirements(BaseModel):
 
     product_type: str = Field(..., description="Type of product or service needed")
     category: SourcingCategory = Field(..., description="Category of sourcing")
-    specifications: list[str] = Field(default_factory=list, description="Technical specifications")
-    location_preference: str | None = Field(None, description="Preferred geographic location")
-    sustainability_required: bool = Field(False, description="Whether sustainability is required")
-    minimum_order_quantity: str | None = Field(None, description="MOQ requirements")
-    certifications: list[str] = Field(default_factory=list, description="Required certifications")
-    budget_range: str | None = Field(None, description="Budget range or pricing expectations")
+    # Note: All fields must be required for OpenAI schema validation
+    specifications: list[str] = Field(..., description="Technical specifications (empty list if none)")
+    location_preference: str | None = Field(..., description="Preferred geographic location (null if not specified)")
+    sustainability_required: bool | None = Field(..., description="Whether sustainability is required (null if not specified)")
+    minimum_order_quantity: str | None = Field(..., description="MOQ requirements (null if not specified)")
+    certifications: list[str] = Field(..., description="Required certifications (empty list if none)")
+    budget_range: str | None = Field(..., description="Budget range or pricing expectations (null if not specified)")
 
 
 class SourcingSearchResponse(BaseModel):
@@ -50,20 +51,27 @@ class SourcingSearchResponse(BaseModel):
     webset_id: str = Field(..., description="ID of the created webset")
     search_query: str = Field(..., description="Search query used")
     sourcing_type: str = Field(..., description="Type of sourcing search performed")
-    criteria: list[str] = Field(default_factory=list, description="Qualification criteria applied")
-    enrichments: list[str] = Field(default_factory=list, description="Data enrichments requested")
+    # Note: All fields must be required for OpenAI schema validation
+    criteria: list[str] = Field(..., description="Qualification criteria applied (empty list if none)")
+    enrichments: list[str] = Field(..., description="Data enrichments requested (empty list if none)")
     geographic_scope: str = Field(..., description="Geographic scope of search")
-    estimated_suppliers: int | None = Field(None, description="Estimated number of suppliers found")
+    estimated_suppliers: int | None = Field(..., description="Estimated number of suppliers found (null if unknown)")
     status: str = Field(..., description="Current status of the search")
 
 
+# Rebuild models to resolve forward references
+SourcingRequirements.model_rebuild()
+SourcingSearchResponse.model_rebuild()
+
+
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=SourcingSearchResponse,
     tools=[create_webset, get_webset_status, list_webset_items] if create_webset else [],
 )
-async def sourcing_assistant_agent(
+async def _sourcing_assistant_agent_call(
     product_type: str,
     category: SourcingCategory = "supplier",
     specifications: list[str] | None = None,
@@ -154,6 +162,51 @@ Certifications: {certs_str}
 Budget Range: {budget_range}
 
 Create a webset to find suppliers matching these requirements."""
+
+
+# Public wrapper - returns parsed SourcingSearchResponse
+async def sourcing_assistant_agent(
+    product_type: str,
+    category: SourcingCategory = "supplier",
+    specifications: list[str] | None = None,
+    location_preference: str | None = None,
+    sustainability_required: bool = False,
+    moq_requirements: str | None = None,
+    certifications: list[str] | None = None,
+    budget_range: str | None = None,
+    llm_provider: str = "openai",
+    model: str = "gpt-4o-mini",
+) -> SourcingSearchResponse:
+    """Find suppliers and solutions using Exa websets.
+
+    Args:
+        product_type: Type of product or service needed
+        category: Category of sourcing
+        specifications: Technical specifications
+        location_preference: Preferred geographic location
+        sustainability_required: Whether sustainability is required
+        moq_requirements: Minimum order quantity requirements
+        certifications: Required certifications
+        budget_range: Budget range or pricing expectations
+        llm_provider: LLM provider to use
+        model: Model to use
+
+    Returns:
+        SourcingSearchResponse with webset details
+    """
+    response = await _sourcing_assistant_agent_call(
+        product_type=product_type,
+        category=category,
+        specifications=specifications,
+        location_preference=location_preference,
+        sustainability_required=sustainability_required,
+        moq_requirements=moq_requirements,
+        certifications=certifications,
+        budget_range=budget_range,
+        llm_provider=llm_provider,
+        model=model
+    )
+    return response.parse()
 
 
 # Convenience functions for common sourcing searches

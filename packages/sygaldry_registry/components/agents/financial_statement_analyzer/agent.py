@@ -34,27 +34,28 @@ except ImportError:
 class FinancialRatios(BaseModel):
     """Calculated financial ratios."""
 
+    # Note: All fields must be required for OpenAI schema validation
     # Profitability Ratios
-    gross_margin: Optional[float] = Field(None, description="Gross profit margin percentage")
-    operating_margin: Optional[float] = Field(None, description="Operating profit margin percentage")
-    net_margin: Optional[float] = Field(None, description="Net profit margin percentage")
-    return_on_assets: Optional[float] = Field(None, description="ROA percentage")
-    return_on_equity: Optional[float] = Field(None, description="ROE percentage")
+    gross_margin: float | None = Field(..., description="Gross profit margin percentage (null if not calculable)")
+    operating_margin: float | None = Field(..., description="Operating profit margin percentage (null if not calculable)")
+    net_margin: float | None = Field(..., description="Net profit margin percentage (null if not calculable)")
+    return_on_assets: float | None = Field(..., description="ROA percentage (null if not calculable)")
+    return_on_equity: float | None = Field(..., description="ROE percentage (null if not calculable)")
 
     # Liquidity Ratios
-    current_ratio: Optional[float] = Field(None, description="Current assets / current liabilities")
-    quick_ratio: Optional[float] = Field(None, description="(Current assets - inventory) / current liabilities")
-    cash_ratio: Optional[float] = Field(None, description="Cash / current liabilities")
+    current_ratio: float | None = Field(..., description="Current assets / current liabilities (null if not calculable)")
+    quick_ratio: float | None = Field(..., description="(Current assets - inventory) / current liabilities (null if not calculable)")
+    cash_ratio: float | None = Field(..., description="Cash / current liabilities (null if not calculable)")
 
     # Leverage Ratios
-    debt_to_equity: Optional[float] = Field(None, description="Total debt / total equity")
-    debt_to_assets: Optional[float] = Field(None, description="Total debt / total assets")
-    interest_coverage: Optional[float] = Field(None, description="EBIT / interest expense")
+    debt_to_equity: float | None = Field(..., description="Total debt / total equity (null if not calculable)")
+    debt_to_assets: float | None = Field(..., description="Total debt / total assets (null if not calculable)")
+    interest_coverage: float | None = Field(..., description="EBIT / interest expense (null if not calculable)")
 
     # Efficiency Ratios
-    asset_turnover: Optional[float] = Field(None, description="Revenue / total assets")
-    inventory_turnover: Optional[float] = Field(None, description="COGS / average inventory")
-    receivables_turnover: Optional[float] = Field(None, description="Revenue / average receivables")
+    asset_turnover: float | None = Field(..., description="Revenue / total assets (null if not calculable)")
+    inventory_turnover: float | None = Field(..., description="COGS / average inventory (null if not calculable)")
+    receivables_turnover: float | None = Field(..., description="Revenue / average receivables (null if not calculable)")
 
 
 class TrendAnalysis(BaseModel):
@@ -75,7 +76,8 @@ class RedFlag(BaseModel):
     category: str = Field(..., description="Category of concern (e.g., 'liquidity', 'profitability')")
     severity: Literal["low", "medium", "high", "critical"] = Field(..., description="Severity level")
     description: str = Field(..., description="Description of the red flag")
-    metric_value: Optional[str] = Field(None, description="The concerning metric value")
+    # Note: All fields must be required for OpenAI schema validation
+    metric_value: str | None = Field(..., description="The concerning metric value (null if not specific)")
     recommendation: str = Field(..., description="Recommended action")
 
 
@@ -91,10 +93,12 @@ class InvestmentInsight(BaseModel):
 class FinancialAnalysisResult(BaseModel):
     """Complete financial analysis result."""
 
-    ratios: FinancialRatios = Field(..., description="Calculated financial ratios")
-    trends: list[TrendAnalysis] = Field(..., description="Identified trends")
-    red_flags: list[RedFlag] = Field(..., description="Financial red flags or concerns")
-    insights: list[InvestmentInsight] = Field(..., description="Investment insights")
+    # Note: Field(...) without description for nested models to avoid OpenAI schema error
+    # OpenAI rejects $ref with additional keywords like 'description'
+    ratios: FinancialRatios = Field(...)
+    trends: list[TrendAnalysis] = Field(...)
+    red_flags: list[RedFlag] = Field(...)
+    insights: list[InvestmentInsight] = Field(...)
     summary: str = Field(..., description="Executive summary of financial health")
     overall_rating: Literal["excellent", "good", "fair", "poor", "critical"] = Field(
         ..., description="Overall financial health rating"
@@ -102,6 +106,14 @@ class FinancialAnalysisResult(BaseModel):
     recommendation: Literal["strong_buy", "buy", "hold", "sell", "strong_sell"] = Field(
         ..., description="Investment recommendation"
     )
+
+
+# Rebuild models to resolve forward references
+FinancialRatios.model_rebuild()
+TrendAnalysis.model_rebuild()
+RedFlag.model_rebuild()
+InvestmentInsight.model_rebuild()
+FinancialAnalysisResult.model_rebuild()
 
 
 # Step 1: Calculate financial ratios
@@ -181,16 +193,37 @@ def calculate_financial_ratios(financial_data: dict[str, Any]) -> FinancialRatio
     if revenue and receivables and receivables > 0:
         ratios["receivables_turnover"] = revenue / receivables
 
-    return FinancialRatios(**ratios)
+    # Ensure all fields have values (None if not calculated)
+    # Required for OpenAI schema validation
+    all_fields = {
+        "gross_margin": None,
+        "operating_margin": None,
+        "net_margin": None,
+        "return_on_assets": None,
+        "return_on_equity": None,
+        "current_ratio": None,
+        "quick_ratio": None,
+        "cash_ratio": None,
+        "debt_to_equity": None,
+        "debt_to_assets": None,
+        "interest_coverage": None,
+        "asset_turnover": None,
+        "inventory_turnover": None,
+        "receivables_turnover": None,
+    }
+    all_fields.update(ratios)
+
+    return FinancialRatios(**all_fields)
 
 
 # Step 2: Analyze ratios and provide insights
+# Internal LLM call function - returns AsyncResponse
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=FinancialAnalysisResult,
 )
-async def analyze_ratios_and_trends(
+async def _analyze_ratios_and_trends_call(
     ratios: str,
     financial_data: str,
     historical_data: str = "",
@@ -247,6 +280,33 @@ Consider:
 - Growth: Are revenues and profits growing?
 
 Be objective and data-driven in your analysis."""
+
+
+# Public wrapper - returns parsed FinancialAnalysisResult
+async def analyze_ratios_and_trends(
+    ratios: str,
+    financial_data: str,
+    historical_data: str = "",
+    industry_benchmarks: str = ""
+) -> FinancialAnalysisResult:
+    """Analyze financial ratios and identify trends and insights.
+
+    Args:
+        ratios: Formatted string of calculated ratios
+        financial_data: Financial statements data as string
+        historical_data: Optional historical data
+        industry_benchmarks: Optional industry benchmarks
+
+    Returns:
+        FinancialAnalysisResult with comprehensive analysis
+    """
+    response = await _analyze_ratios_and_trends_call(
+        ratios=ratios,
+        financial_data=financial_data,
+        historical_data=historical_data,
+        industry_benchmarks=industry_benchmarks
+    )
+    return response.parse()
 
 
 # Fetch financial data from SEC EDGAR

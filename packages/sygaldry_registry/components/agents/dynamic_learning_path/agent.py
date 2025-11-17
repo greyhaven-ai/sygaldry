@@ -54,7 +54,7 @@ class SkillAssessment(BaseModel):
     confidence: float = Field(..., description="Confidence in assessment (0-1)")
     evidence: list[str] = Field(..., description="Evidence supporting this assessment")
     gaps: list[str] = Field(..., description="Identified knowledge gaps")
-    improvement_areas: list[str] = Field(default_factory=list, description="Specific areas for improvement")
+    improvement_areas: list[str] = Field(..., description="Specific areas for improvement (empty list if none)")
 
 
 class LearningGoal(BaseModel):
@@ -66,7 +66,7 @@ class LearningGoal(BaseModel):
     priority: int = Field(..., description="Priority ranking (1-10)")
     prerequisites: list[str] = Field(..., description="Required prerequisite knowledge")
     success_criteria: list[str] = Field(..., description="Measurable success criteria")
-    milestones: list[str] = Field(default_factory=list, description="Key milestones along the way")
+    milestones: list[str] = Field(..., description="Key milestones along the way (empty list if none)")
 
 
 class LearningResource(BaseModel):
@@ -74,15 +74,15 @@ class LearningResource(BaseModel):
 
     title: str = Field(..., description="Resource title")
     type: ResourceType = Field(..., description="Type of resource")
-    url: str | None = Field(None, description="URL if available")
+    url: str | None = Field(..., description="URL if available (null if not available)")
     description: str = Field(..., description="Brief description of content")
     estimated_time: str = Field(..., description="Estimated time to complete")
     difficulty: SkillLevel = Field(..., description="Difficulty level")
     learning_styles: list[LearningStyle] = Field(..., description="Suitable learning styles")
     skills_covered: list[str] = Field(..., description="Skills this resource covers")
-    quality_score: float = Field(default=0.8, description="Quality rating (0-1)")
-    cost: str = Field(default="Free", description="Cost of the resource")
-    prerequisites: list[str] = Field(default_factory=list, description="Prerequisites for this resource")
+    quality_score: float = Field(..., description="Quality rating (0-1)")
+    cost: str = Field(..., description="Cost of the resource")
+    prerequisites: list[str] = Field(..., description="Prerequisites for this resource (empty list if none)")
 
 
 class LearningModule(BaseModel):
@@ -94,8 +94,8 @@ class LearningModule(BaseModel):
     estimated_duration: str = Field(..., description="Estimated time for module")
     assessment_method: str = Field(..., description="How to assess completion")
     prerequisites: list[str] = Field(..., description="Required prior modules")
-    practice_exercises: list[str] = Field(default_factory=list, description="Hands-on exercises")
-    real_world_applications: list[str] = Field(default_factory=list, description="Real-world use cases")
+    practice_exercises: list[str] = Field(..., description="Hands-on exercises (empty list if none)")
+    real_world_applications: list[str] = Field(..., description="Real-world use cases (empty list if none)")
 
 
 class LearningPath(BaseModel):
@@ -109,8 +109,16 @@ class LearningPath(BaseModel):
     milestones: list[str] = Field(..., description="Key milestones and checkpoints")
     adaptation_strategy: str = Field(..., description="How to adapt based on progress")
     success_metrics: list[str] = Field(..., description="How to measure success")
-    learning_outcomes: list[str] = Field(default_factory=list, description="Expected outcomes upon completion")
-    career_relevance: str = Field(default="", description="How this path relates to career goals")
+    learning_outcomes: list[str] = Field(..., description="Expected outcomes upon completion (empty list if none)")
+    career_relevance: str = Field(..., description="How this path relates to career goals")
+
+
+# Rebuild models to resolve forward references
+SkillAssessment.model_rebuild()
+LearningGoal.model_rebuild()
+LearningResource.model_rebuild()
+LearningModule.model_rebuild()
+LearningPath.model_rebuild()
 
 
 @llm.call(
@@ -118,7 +126,7 @@ class LearningPath(BaseModel):
     model_id="gpt-4o",
     format=list[SkillAssessment],
 )
-def assess_current_skills(
+async def _assess_current_skills_call(
     background: str, experience: str, learning_goals: str, self_assessment: str = ""
 ) -> str:
     """Assess learner's current skill levels."""
@@ -153,12 +161,23 @@ def assess_current_skills(
     """
 
 
+# Public wrapper for assess_current_skills
+async def assess_current_skills(
+    background: str, experience: str, learning_goals: str, self_assessment: str = ""
+) -> list[SkillAssessment]:
+    """Assess learner's current skill levels."""
+    response = await _assess_current_skills_call(
+        background=background, experience=experience, learning_goals=learning_goals, self_assessment=self_assessment
+    )
+    return response.parse()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=list[LearningGoal],
 )
-def design_learning_goals(
+async def _design_learning_goals_call(
     current_skills: list[SkillAssessment],
     desired_outcomes: str,
     available_time: str,
@@ -193,12 +212,31 @@ def design_learning_goals(
     """
 
 
+# Public wrapper for design_learning_goals
+async def design_learning_goals(
+    current_skills: list[SkillAssessment],
+    desired_outcomes: str,
+    available_time: str,
+    learning_preferences: str = "",
+    constraints: str = "",
+) -> list[LearningGoal]:
+    """Design specific learning goals based on assessment."""
+    response = await _design_learning_goals_call(
+        current_skills=current_skills,
+        desired_outcomes=desired_outcomes,
+        available_time=available_time,
+        learning_preferences=learning_preferences,
+        constraints=constraints,
+    )
+    return response.parse()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=list[LearningResource],
 )
-def curate_learning_resources(
+async def _curate_learning_resources_call(
     learning_goals: list[LearningGoal],
     current_level: str,
     learning_style: str,
@@ -249,12 +287,33 @@ def curate_learning_resources(
     """
 
 
+# Public wrapper for curate_learning_resources
+async def curate_learning_resources(
+    learning_goals: list[LearningGoal],
+    current_level: str,
+    learning_style: str,
+    time_constraints: str = "",
+    topics: str = "",
+    budget: str = "Mixed",
+) -> list[LearningResource]:
+    """Curate appropriate learning resources."""
+    response = await _curate_learning_resources_call(
+        learning_goals=learning_goals,
+        current_level=current_level,
+        learning_style=learning_style,
+        time_constraints=time_constraints,
+        topics=topics,
+        budget=budget,
+    )
+    return response.parse()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o",
     format=LearningPath,
 )
-def design_learning_path(
+async def _design_learning_path_call(
     learning_goals: list[LearningGoal],
     resources: list[LearningResource],
     learner_profile: str,
@@ -303,12 +362,33 @@ def design_learning_path(
     """
 
 
+# Public wrapper for design_learning_path
+async def design_learning_path(
+    learning_goals: list[LearningGoal],
+    resources: list[LearningResource],
+    learner_profile: str,
+    time_constraints: str = "",
+    success_criteria: str = "",
+    career_goals: str = "",
+) -> LearningPath:
+    """Design comprehensive learning path."""
+    response = await _design_learning_path_call(
+        learning_goals=learning_goals,
+        resources=resources,
+        learner_profile=learner_profile,
+        time_constraints=time_constraints,
+        success_criteria=success_criteria,
+        career_goals=career_goals,
+    )
+    return response.parse()
+
+
 @llm.call(
     provider="openai:completions",
     model_id="gpt-4o-mini",
     format=str,
 )
-def generate_adaptive_recommendations(progress: str, challenges: str, learning_path: str, time_spent: str) -> str:
+async def _generate_adaptive_recommendations_call(progress: str, challenges: str, learning_path: str, time_spent: str) -> str:
     """Generate adaptive recommendations based on progress."""
     return f"""
     SYSTEM:
@@ -325,6 +405,16 @@ def generate_adaptive_recommendations(progress: str, challenges: str, learning_p
 
     Suggest adjustments to optimize their learning journey.
     """
+
+
+# Public wrapper for generate_adaptive_recommendations
+async def generate_adaptive_recommendations(progress: str, challenges: str, learning_path: str, time_spent: str) -> str:
+    """Generate adaptive recommendations based on progress."""
+    response = await _generate_adaptive_recommendations_call(
+        progress=progress, challenges=challenges, learning_path=learning_path, time_spent=time_spent
+    )
+    # format=str means the response is already a string, no parse() needed
+    return response
 
 
 async def dynamic_learning_path_generator(
