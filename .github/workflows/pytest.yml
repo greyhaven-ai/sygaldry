@@ -30,25 +30,6 @@ jobs:
       with:
         python-version: '3.11.x'
 
-    - name: Cache apt packages
-      uses: actions/cache@v4
-      env:
-        cache-name: cache-apt
-      with:
-        path: /var/lib/apt/lists
-        key: ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('.github/workflows/packages.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-${{ env.cache-name }}-
-
-    - name: Cache pip packages
-      uses: actions/cache@v4
-      env:
-        cache-name: cache-pip
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-${{ env.cache-name }}-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-${{ env.cache-name }}-
 
     - name: Install system dependencies
       run: |
